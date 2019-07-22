@@ -1994,7 +1994,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     # switches for co2 chemistry 
     co2chem = co2chem               # dic = co2+hco3+co3; alk = hco3+2*co3
     # working directory 
-    homedir = 'C:/Users/YK/Desktop/Sed_res'
+    homedir = '.'
     # file nane 
     if len(fl)==0:filename = '-no_name_specified' 
     else: filename = '-'+fl
@@ -2233,6 +2233,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     time=0.
     it=1
     flg_restart = False
+    flg_timereset = False
     nt_spn=400;nt_trs=5000;nt_aft=1000
     dt_save = dt
     while True: # time loop 
@@ -2271,7 +2272,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                     ,temp, dep, sal,dici,alki, o2i
         else:
             print>> file_bound, time, d13c_ocn, d18o_ocn\
-                    , np.sum(ccflx[0:4]),np.sum(ccflx[4:8]),ccflx[:]\
+                    , np.sum(ccflx[0:4]),np.sum(ccflx[4:8]),str(ccflx)[1:-1]\
                     ,temp, dep, sal,dici,alki, o2i
         itr_w = 0
         err_w_min = 1e4
