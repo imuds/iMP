@@ -1,35 +1,126 @@
-function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, folder)
+function run_sig_iso_dtchange(str_exp)
 %
 %   *******************************************************************   %
 %   ***  Running IMP for signal tracking and lysocline exps ***********   %
 %   *******************************************************************   %
-    
-%   cc_rain_flx_in      :   influx of CaCO3  [mol cm-2 yr-1]
-%   rainratio_in        :   assumed OM/CaCO3-ratio [-]
-%   dep_in              :   water depth [km] (set dep_max, below, to different depth for dissolution experiment)
-%   dt_in               :   time step to start simulation with [yr]
-%   oxonly_in           :   select oxic only model for OM degradation [true/false]
-%   folder              :   path to output folder, will be created 
 
-    % Example run: 
-    % run_sig_iso_dtchange(6.0e-5, 1.5, 0.24, 1d8, true, './1207_test')
-    
-    
+%% function to run the model for signal tracking (def_sense = true; in main)
+%% and single lysocline experiments (def_sense = false; in main)
+%% changes dt automatically if pH can't be calculated but uses w and other results from previous calculation
+%% saves profiles in .txt files
+% burial rate is updated at a give time step until it converges well
 
-    %% function to run the model for signal tracking (def_sense = true; in main)
-    %% and single lysocline experiments (def_sense = false; in main)
-    %% changes dt automatically if pH can't be calculated but uses w and other results from previous calculation
-    %% saves profiles in .txt files
-    % burial rate is updated at a give time step until it converges well
-    
+% *********************************************************************** %
+% *** INITIALIZE PARAMETERS & VARIABLES ********************************* %
+% *********************************************************************** %
+%
+close all;
+disp([' ']);
+%
+% *** replacement dummy parameters ************************************** %
+%
+% cc_rain_flx_in=6.0e-5;
+% rainratio_in=1.5;
+% dep_in=0.24;
+% dt_in=1d8;
+% oxonly_in=true;
+%
+% *** declare global parameters ***************************************** %
+%
+%%%global def_nondisp;
+%
+% *** initialize ******************************************************** %
+%
+% find current path
+str_current_path = pwd;
+% load experiment options
+if isempty(str_exp), str_exp='EXAMPLE'; end
+eval(str_exp);
+%
+% *** MATLAB environment settings *************************************** %
+%
+if def_dispwarnings
+    warning('on','all');
+else
+    warning('off','all');
+end
+%
+% *** SET PATHS & DIRECTORIES & LOAD DATA ******************************* %
+%
+% initialize dir path
+str_path = '';
+% test for proxy time-series file and load
+if ~isempty(user_filename_proxyin)
+    if ~(exist([str_path '/' user_filename_proxyin], 'file') == 2)
+        disp([' * ERROR: Cannot find proxy time-series file: ', [str_path '/' user_filename_proxyin]]);
+        disp([' ']);
+        return;
+    else
+        opt_timeseries = true;
+        data_proxyin = [str_path '/' user_filename_proxyin '.txt'];
+    end
+else
+    opt_timeseries = false;
+end
+%
+% *** backwards compatability ******************************************* %
+%
+folder = [str_current_path '/' str_exp];
+mkdir(folder);      % create output folder
+%    
     dep_max = 5.0d0;    %   max depth to be changed to during the experiment
 %    folder = './0_test';
-    mkdir(folder);      % create output folder
     interval =10;       % if def_nondisp = false: choose a value between 1 to nz; om depth profile is shown with this interval; e.g., if inteval = 1, conc. at all depths are shown
     % e.g., if interval = 10, om conc. at nz/10 depths are shown
     flag_steadystate = false;
     % initialize/define global properties/variables
     global_var = caco3_main;
+%
+% *** pass global user-set parameters *********************************** %
+%
+global_var.user_cc_rain_flx_in = 1.0E-6*user_cc_rain_flx_in; % influx of CaCO3 [mol cm-2 yr-1]
+global_var.user_rainratio_in   = user_rainratio_in;     % [1.5] assumed influx OM/CaCO3-ratio [dimensionless]
+global_var.user_dep_in         = user_dep_in;                 % [0.24] seafloor water depth [km]
+global_var.user_alk            = user_alk;
+global_var.user_dic            = user_dic;
+global_var.user_o2             = user_o2;
+global_var.user_ca             = user_ca;
+global_var.user_oxonly_in      = user_oxonly_in;           % [true] select oxic only model [true/false]
+global_var.user_plot           = user_plot;
+%
+% *** pass global user-set parameters -- bioturbation option ************ %
+%
+% NOTE:
+%       TO SET DIFFERENT MIXING STYLES SET ONE OF THE FOLLOWING TO 'TRUE'
+%       OR ALL 'FALSE' FOR FICKIAN MIXING:
+%       def_allnobio = false;    % without bioturbation?
+%       def_allturbo2 = false;   % all turbo2 mixing
+%       def_alllabs = false;     % all labs mixing
+%       def_allnonlocal = false; % ON if assuming non-local mixing 
+%                                  (i.e., if labs or turbo2 is ON)
+% DEFAULTS
+global_var.def_allnobio    = false;
+global_var.def_allturbo2   = false;
+global_var.def_alllabs     = false;
+global_var.def_allnonlocal = false;
+%
+switch user_bioturbation
+    case {0} % without bioturbation
+        global_var.def_allnobio    = true;
+    case {1} % turbo2 mixing
+        global_var.def_allturbo2   = true;
+    case {2} % turbo2 mixing  + non-local mixing
+        global_var.def_allturbo2    = true;
+        global_var.def_allnonlocal  = true;
+    case {3} % labs mixing
+        global_var.def_alllabs     = true;
+    case {4} % labs mixing + non-local mixing
+        global_var.def_alllabs     = true;
+        global_var.def_allnonlocal = true;
+    case {5} % FICKIAN MIXING
+end
+%
+% *********************************************************************** %
 
     % initialize the boundary conditions
     [bc, global_var] = caco3_main.caco3_set_boundary_cond(global_var);
@@ -38,14 +129,14 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     mix_type = caco3_main.caco3_set_mixing(global_var);
 
     % set to input values to boundary conditions:
-    bc.ccflxi = cc_rain_flx_in;      % mol (CaCO3) cm-2 yr-1
-    global_var.om2cc = rainratio_in;   % rain ratio of organic matter to calcite
-    dep = dep_in;   % 0.0d0; % depth in km
+    bc.ccflxi = global_var.user_cc_rain_flx_in;      % mol (CaCO3) cm-2 yr-1
+    global_var.om2cc = global_var.user_rainratio_in;   % rain ratio of organic matter to calcite
+    dep = global_var.user_dep_in;   % 0.0d0; % depth in km
     dt = dt_in; % time step [yr]
-    if(oxonly_in)
+    if(global_var.user_oxonly_in)
         bc.anoxic = false;         % oxic only model of OM degradation by Emerson (1985)
     end
-    global_var.def_oxonly = oxonly_in;
+    global_var.def_oxonly = global_var.user_oxonly_in;
 
 
     dw = zeros(1, global_var.nz);                       % burial rate change
@@ -84,9 +175,11 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % assume fluxes of om, cc and clay, required to calculate burial velocity
     [omflx, detflx, ccflx] = caco3_main.flxstat(global_var.om2cc, bc.ccflxi, global_var.mcc, global_var.nspcc);
     %            fprintf('ccflx %17.16e \n', ccflx);
-    fprintf('om2cc, ccflxi, detflx, omflx, sum(ccflx) \n');
-    fprintf('%17.16e %17.16e %17.16e %17.16e %17.16e \n', global_var.om2cc, bc.ccflxi, detflx, omflx, sum(ccflx));
-    fprintf(' \n');
+    if def_disp
+        fprintf('om2cc, ccflxi, detflx, omflx, sum(ccflx) \n');
+        fprintf('%17.16e %17.16e %17.16e %17.16e %17.16e \n', global_var.om2cc, bc.ccflxi, detflx, omflx, sum(ccflx));
+        fprintf(' \n');
+    end
 
     % molar volume (cm3 mol-1) needed for burial rate calculation
     mvom = global_var.mom/global_var.rhoom;  % om
@@ -103,12 +196,20 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % % determine factors for upwind scheme to represent burial advection
     [up, dwn, cnr, adf] = caco3_main.calcupwindscheme(w, global_var.nz);
 
-    %%% ~~~~~~~~~~~~~~ set recording time
-    % call recordtime()
+    % *** set recording time ******************************************** %
+    %
     [rectime, cntrec, time_spn, time_trs, time_aft] = caco3_main.recordtime(global_var.nrec, wi, global_var.ztot, global_var.def_biotest, global_var.def_sense, global_var.def_nonrec, folder);
+    if opt_timeseries
+        time_trs = 50d3;
+    end
+    
+    % *** MATLAB environment settings *************************************** %
+    %
+    % *********************************************************************** %
+
 
     % water depth, i and f denote initial and final values
-    depi = dep_in;  % depth before event
+    depi = global_var.user_dep_in;  % depth before event
     depf = dep_max;   % max depth to be changed to
 
     % %  flux ratio of fine particles: i and f denote initial and final values
@@ -202,11 +303,16 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                     continue        % cycle in fortran
                 end
             end
-            nt_trs = 5000;    % timesteps close to & during event (signal transition) % YK modified
+            
+            nt_spn = 1000; %8000;
+            nt_trs = 500; %5000;    % timesteps close to & during event (signal transition) % YK modified
             nt_aft = 1000;    % timesteps after event  % YK modified
-
             [dt] = caco3_main.timestep(time, nt_spn, nt_trs, nt_aft, time_spn, time_trs, dt);
 
+            if opt_timeseries
+                dt = time_trs/nt_trs;
+            end
+            
             [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp] = ...
                 caco3_main.signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
                 ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest);
@@ -219,7 +325,6 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                 flag_smaller_dt = false;
             end
         end
-
 
         % isotope signals represented by caco3 rain fluxes
         d18o_flx = sum(d18o_sp(:).*ccflx(:))/bc.ccflxi;
@@ -267,10 +372,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         w_save = w;          % saving previous w
 
         while(err_w > global_var.tol)       %   	300 continue % point of restart when burial velocity does not converge
-            if(int_count == 16)
-                34
-            end
-            fprintf('(int_count,dt,time)  %2.2i %11.3e %11.3e\n', int_count, dt, time);
+%             if(int_count == 16)
+%                 34
+%             end
+            if (def_disp), fprintf('(int_count,dt,time)  %2.2i %11.3e %11.3e\n', int_count, dt, time); end
             dw = zeros(1, global_var.nz);                       % burial rate change caused by reaction and non-local mixing
 
             oxco2 = zeros(1, global_var.nz);  % oxic degradation of om; here initially assumed 0  % YK added
@@ -460,7 +565,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             end
             %~~  OM & O2 calculation END ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             % calculation of oxic and anoxic degradation of om (oxco2 and anco2, respectively)
-            fprintf('finising om & o2 \n');
+            if (def_disp), fprintf('finising om & o2 \n'); end
 
             %                     for iz = 1:global_var.nz
             %                         if (o2x(iz) > global_var.o2th)
@@ -612,7 +717,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                     % %                             go to 300  % Dominik: do just go back to 300 if err_w > tol
                 elseif (itr_w==102)
                     w = wxx;
-                    fprintf('not converging w %i \t %17.16e \t %17.16e \n',time, err_w, err_w_min);
+                    if (def_disperror), fprintf('not converging w %i \t %17.16e \t %17.16e \n',time, err_w, err_w_min); end
                     %       pause;
                     break;  % %     go to 400
                 end
@@ -655,7 +760,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         if (time>=rectime(cntrec))
             %        call recordprofile(cntrec )
             caco3_main.recordprofile(cntrec, global_var.nz, global_var.z, age, pt, global_var.msed, wi, rho, cc, ccx, dic, dicx, alk, alkx, co3, co3x, co3sat ...
-                , rcc, pro, o2x, oxco2, anco2, bc.om, global_var.mom, global_var.mcc, d13c_ocni, d18o_ocni, up,dwn, cnr, adf, global_var.nspcc, ptx, w, frt, prox, omx, d13c_blk, d18o_blk, folder)
+                , rcc, pro, o2x, oxco2, anco2, bc.om, global_var.mom, global_var.mcc, d13c_ocni, d18o_ocni, up,dwn, cnr, adf, global_var.nspcc, ptx, w, frt, prox, omx, d13c_blk, d18o_blk, folder,global_var)
 
             cntrec = cntrec + 1;
             if (cntrec == global_var.nrec+1)
@@ -674,13 +779,15 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,global_var.mcc,rho,ptx,global_var.msed,izrec2,global_var.nz, global_var.def_size)
         %********************************************************************************************************************************  ADDED-END
 
-        fprintf('error in frt: %17.16e \n', max(abs(frt - 1d0)));
-        fmt=[repmat('%17.16e \t',1,2) '\n'];   % YK added
-        fprintf(file_fracid,fmt, time, max(abs(frt - 1d0))); % YK added
+        if (global_var.def_disperror)
+           fprintf('error in frt: %17.16e \n', max(abs(frt - 1d0)));
+           fmt=[repmat('%17.16e \t',1,2) '\n'];   % YK added
+           fprintf(file_fracid,fmt, time, max(abs(frt - 1d0))); % YK added
+        end
         %%%%%%%%%%%%%%
 
         %% showing results on screen?
-        if(~global_var.def_nondisp)
+        if (global_var.def_dispfull)
 
             omx_wtpc = omx.*global_var.mom./rho'*100d0;
             fprintf('~~~~ conc ~~~~ itr_om_o2 = %i \n', itr_om_o2);
@@ -755,17 +862,13 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     %********************************************************************************************************************************  ADDED-END
 
     % recording end results for lysoclines and caco3 burial fluxes
-    if(oxonly_in)
+    if(global_var.user_oxonly_in)
         sprintf('%s/matlab_frac.txt', folder);
-%         str_lys = sprintf('./1207_test/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',cc_rain_flx_in, rainratio_in);
-%         str_ccbur = sprintf('./1207_test/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',cc_rain_flx_in, rainratio_in);
-        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
-        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
+        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,global_var.user_cc_rain_flx_in,global_var.user_rainratio_in);
+        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,global_var.user_cc_rain_flx_in,global_var.user_rainratio_in);
     else
-%         str_lys = sprintf('./1207_test/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',cc_rain_flx_in, rainratio_in);
-%         str_ccbur = sprintf('./1207_test/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',cc_rain_flx_in, rainratio_in);
-        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
-        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
+        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder,user_cc_rain_flx_in,user_rainratio_in);
+        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder,user_cc_rain_flx_in,user_rainratio_in);
     end
 
     file_tmp = fopen(str_lys,'at+');    % the 4th column is the plotted CaCO3 wt%!

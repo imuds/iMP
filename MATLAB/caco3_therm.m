@@ -5,9 +5,16 @@ classdef caco3_therm
 %   *******************************************************************   %
     
     properties
+        
     end
-    
+
     methods(Static)
+        
+%         function obj = caco3_therm(arg1)
+%             % set default values
+%             %            fprintf('in caco3_therm \n');
+%             %            obj.nz = arg1;
+%         end
         
         function calceq1_val = calceq1(tmp,sal,dep) % Millero et al. (2006, MC); Pressure effect from Zeebe and Wolf-Gladrow (2001)
             
@@ -109,13 +116,15 @@ classdef caco3_therm
             c=(1.0d0-2.0d0*dic./alk)*k1*k2;
             ph = (-b+sqrt(b.*b-4.0d0.*a.*c))./2.0d0./a;
             if (any(ph<0d0))
-                fprintf('... unable to calculate ph - calcspecies \n');
-                % print*,dic
-                % print*,alk
-                % print*,ph
-                % stop
-                info=1;
-                return
+%                  if (global_var.def_dispwarnings)
+%                     fprintf('... unable to calculate ph - calcspecies \n');
+%                     % print*,dic
+%                     % print*,alk
+%                     % print*,ph
+%                     % stop
+%                     info=1;
+%                     return
+%                  end
             end
             co2 = alk./(k1./ph+2.0d0.*k1.*k2./ph./ph);
             % hco3=co2*k1/ph
@@ -124,9 +133,7 @@ classdef caco3_therm
             co3=alk./(ph./k2+2.0d0);
             % ph=-log10(ph)
             
-            
         end
-        
         
         function [dco3_dalk,dco3_ddic,info] = calcdevs(dic,alk,tmp,sal,dep)
             % subroutine to calculate derivatives of co3 conc. wrt dic and alk (defined as dco3_ddic and dco3_dalk, respectively)
@@ -140,13 +147,15 @@ classdef caco3_therm
             c=(1.0d0-2.0d0*dic./alk)*k1*k2;
             ph = (-b+sqrt(b.*b-4.0d0.*a.*c))./2.0d0./a;
             if (any(ph<0d0))
-                fprintf('... unable to calculate ph - calcdevs \n');
-                % print*,dic
-                % print*,alk
-                % print*,ph
-                % stop
-                info=1;
-                return
+%                 if (global_var.def_dispwarnings)
+%                     fprintf('... unable to calculate ph - calcdevs \n');
+%                     % print*,dic
+%                     % print*,alk
+%                     % print*,ph
+%                     % stop
+%                     info=1;
+%                     return
+%                 end
             end
             co2 = alk./(k1./ph+2.0d0.*k1.*k2./ph./ph);
             % hco3=co2*k1/ph

@@ -28,7 +28,7 @@ classdef caco3_main
         nrec = 15;      % total recording time of sediment profiles
         
         %% Constants
-        cai = 10.3d-3;      % mol kg-1 calcium conc. seawater
+        %%%cai = 10.3d-3;      % mol kg-1 calcium conc. seawater
         fact = 1d-3;  % w/r factor to facilitate calculation
         % :: rhosed = 2.09d0 % g/cm3 sediment particle density assuming opal
         rhosed = 2.6d0;  % g/cm3 sediment particle density assming kaolinite
@@ -57,21 +57,15 @@ classdef caco3_main
         
         %% options, compare defines.h
         def_test = false;       % using 'test' directory
-        def_biotest = false;   	% testing 5kyr signal change event
+        def_biotest = false;   	% testing 5kyr signal change event [false]
         def_size = false;       % testting two size caco3 simulation
         
-        def_sense = true;       % without signal tracking
+        def_sense = true;       % without signal tracking [true]
         def_track2 = false;   	% using method2 to track signals (default 42 species)
-        def_nondisp = true;       % won't showing results on display
         def_nonrec = false;       % define not recording profiles?
         def_showiter = false;      % show co2 iterations & error in calccaco3sys
         def_sparse = false;       % using sparse matrix solve (you need UMFPACK)
-        
-        def_allnobio = false;       % without bioturbation?
-        def_allturbo2 = false;      % all turbo2 mixing
-        def_alllabs = false;        % all labs mixing
-        def_allnonlocal = false; 	% ON if assuming non-local mixing (i.e., if labs or turbo2 is ON)
-                
+                        
         def_nodissolve = false;     % assuming no caco3 dissolution
         
         def_fullclump = false;      % allowing full 2 substitution including 17o
@@ -84,7 +78,49 @@ classdef caco3_main
     end
     
     properties
-        
+
+% *********************************************************************** %
+% *** GLOBAL PARAMETERS ************************************************* %
+% *********************************************************************** %
+%
+% *** specify boundary conditions *************************************** %
+user_cc_rain_flx_in;
+user_rainratio_in;
+user_dep_in;
+user_alk;
+user_dic;
+user_o2;
+user_ca;
+% *** specify model configuration *************************************** %
+%
+user_bioturbation
+user_oxonly_in;
+%
+% *** specify model ouput *********************************************** %
+%
+user_plot
+%
+% *** time-dependent (signal processing) settings *********************** %
+%
+user_filename_proxyin='';
+%
+% *** numerical/model solution settings ********************************* %
+%
+% *** WARNINGS & OUPTUT ************************************************* %
+%
+def_disp;
+def_dispfull;
+def_disperror;
+def_dispwarnings;
+%
+% *** COMPATABILTY ****************************************************** %
+%
+def_allnobio;
+def_allturbo2;
+def_alllabs;
+def_allnonlocal;
+%
+% *********************************************************************** %
         
         %%
         nspcc = 4;  % default: 4; if def_sense: 12;  if def_track2: 42; if def_size: 8    % number of CaCO3 species
@@ -104,6 +140,9 @@ classdef caco3_main
         sporo; sporoi; sporof; ; porof  % solid volume fraction (1 - poro), i and f denote the top and bottom values of variables
         
         zox;
+
+        cai;
+
     end
     
     methods(Static)
@@ -120,14 +159,15 @@ classdef caco3_main
             bc.omflx = 12d-6;       % mol cm-2 yr-1       % a reference om flux; Emerson and Archer (1990)
             bc.detflx = 180d-6;     % g cm-2 yr-1  % a reference detrital flux; MUDS input http://forecast.uchicago.edu/Projects/muds.html
             bc.om = 1d-8*ones(1,global_var.nz);           % assume an arbitrary low conc.
-            bc.alki =  2285d0;      % uM  % a reference ALK; MUDS
-            bc.dici = 2211d0;       % uM   % a reference DIC; MUDS
-            bc.o2i = 165d0;         % uM     % a reference O2 input ; MUDS
+            bc.alki = global_var.user_alk; % 2285d0;      % uM  % a reference ALK; MUDS
+            bc.dici = global_var.user_dic; % 2211d0;       % uM   % a reference DIC; MUDS
+            bc.o2i = global_var.user_o2; % 165d0;         % uM     % a reference O2 input ; MUDS
             bc.o2 = 0.0;
             bc.tmp = 2.0;
             bc.sal = 35.0;
             bc.dep = 3.5; % depth in km
 
+            global_var.cai = global_var.user_ca*1.0E-3;
             
             bc.oxic = true;            % oxic only model of OM degradation by Emerson (1985)
             bc.anoxic = true;          % oxic-anoxic model of OM degradation by Archer (1991)
@@ -1913,146 +1953,176 @@ classdef caco3_main
         end
         
         function recordprofile(itrec, nz,z,age,pt,msed,wi,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,co3sat ...
-                ,rcc,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,nspcc,ptx,w,frt,prox,omx,d13c_blk,d18o_blk, folder)
-            %% write sediment profiles in files
-            
+                ,rcc,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,nspcc,ptx,w,frt,prox,omx,d13c_blk,d18o_blk,folder,global_var)
+            % *********************************************************** %
+            % *** write sediment profiles in files ********************** %
+            % *********************************************************** %
+            %
             if (itrec==0)
-                %    open(unit=file_tmp,file=trim(adjustl(workdir))//'ptx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
-%                str = sprintf('./1207_test/matlab_ptx-%3.3i.txt',itrec);
+                %
+                % *** itrec==0 FILES ************************************ %
+                %
+                % save file -- 
                 str = sprintf('%s/matlab_ptx-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),pt(iz)*msed/2.5d0*100,0d0,1d0,wi \n');
+                fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',z(iz),age(iz),pt(iz)*msed/2.5d0*100,0d0,1d0,wi);
                 for iz = 1:nz
-                    %        write(file_tmp,*) z(iz),age(iz),pt(iz)*msed/2.5d0*100,0d0,1d0  ,wi
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',z(iz),age(iz),pt(iz)*msed/2.5d0*100,0d0,1d0  ,wi);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'ccx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_ccx-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),sum(cc(iz,:))*100d0/2.5d0*100d0,dic(iz)*1d3, alk(iz)*1d3,co3(iz)*1d3-co3sat,sum(rcc(iz,:)),-log10(pro(iz) \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),sum(cc(iz,:))*100d0/2.5d0*100d0, dic(iz)*1d3, alk(iz)*1d3, co3(iz)*1d3-co3sat &
-                    %                 , sum(rcc(iz,:)),-log10(pro(iz))
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
                         z(iz),age(iz),sum(cc(iz,:))*100d0/2.5d0*100d0, dic(iz)*1d3, alk(iz)*1d3, co3(iz)*1d3-co3sat, sum(rcc(iz,:)),-log10(pro(iz) ));
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'o2x-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_o2x-%3.3i.txt',folder, itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),o2x(iz)*1d3,oxco2(iz),anco2(iz) \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),o2x(iz)*1d3, oxco2(iz), anco2(iz)
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),o2x(iz)*1d3, oxco2(iz), anco2(iz));
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'omx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_omx-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),om(iz)*mom/2.5d0*100d0 \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),om(iz)*mom/2.5d0*100d0
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),om(iz)*mom/2.5d0*100d0);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'ccx_sp-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_ccx_sp-%3.3i.txt',folder,itrec);
                 fmt=[repmat('%17.16e \t',1,nspcc+2) '\n'];
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz), age(iz),cc(iz,:)*mcc/2.5d0*100d0 \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),(cc(iz,isp)*mcc/2.5d0*100d0,isp=1,nspcc)
                     fprintf(file_tmp,fmt,z(iz), age(iz),cc(iz,:)*mcc/2.5d0*100d0);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'sig-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_sig-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),d13c_ocni,d18o_ocni \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),d13c_ocni,d18o_ocni
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),d13c_ocni,d18o_ocni);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'bur-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_bur-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz) \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz)
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz));
                 end
                 fclose(file_tmp);
             else
-                
-                %    open(unit=file_tmp,file=trim(adjustl(workdir))//'ptx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                %
+                % *** itrec>0 FILES ************************************* %
+                %
+                % save file -- 
                 str = sprintf('%s/matlab_ptx-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format: depth (cm), age(yr), clay wtpct, sld sediment density (g cm-3), sld vol. fraction (cm3 cm-3), burial velocity (cm yr-1) \n');
                 for iz = 1:nz
-                    %        write(file_tmp,*) z(iz),age(iz),pt(iz)*msed/2.5d0*100,0d0,1d0  ,wi
-                    fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',z(iz),age(iz),ptx(iz)*msed/rho(iz)*100d0,rho(iz),frt(iz) ,w(iz));
+                    fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',z(iz),age(iz),ptx(iz)*msed/rho(iz)*100d0,rho(iz),frt(iz),w(iz));
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'ccx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_ccx-%3.3i.txt',folder,itrec);
-                file_tmp = fopen(str,'wt');
+                file_tmp = fopen(str,'wt');                
+                fprintf(file_tmp, '%% Format: depth (cm), age(yr), CaCO3 wtpct, DIC (M), ALK (M), capdelta-CO3 (M), dissolution rate,  pH \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),sum(cc(iz,:))*100d0/2.5d0*100d0, dic(iz)*1d3, alk(iz)*1d3, co3(iz)*1d3-co3sat &
-                    %                 , sum(rcc(iz,:)),-log10(pro(iz))
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
                         z(iz),age(iz),sum(ccx(iz,:))*mcc/rho(iz)*100d0, dicx(iz)*1d3, alkx(iz)*1d3, co3x(iz)*1d3-co3sat, sum(rcc(iz,:)),-log10(prox(iz)) );
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'o2x-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_o2x-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format: depth (cm), age(yr), O2 (M), oxic degradation rate (mol cm-3 yr-1), anoxic degradation rate (mol cm-3 yr-1) \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),o2x(iz)*1d3, oxco2(iz), anco2(iz)
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),o2x(iz)*1d3, oxco2(iz), anco2(iz));
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'omx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_omx-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format: depth (cm), age(yr), OM wtpct \n');
                 for iz = 1:nz
-                    %                 write(file_tmp,*) z(iz),age(iz),om(iz)*mom/2.5d0*100d0
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),omx(iz)*mom/rho(iz)*100d0);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'ccx_sp-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_ccx_sp-%3.3i.txt',folder,itrec);
                 fmt=[repmat('%17.16e \t',1,nspcc+2) '\n'];
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),ccx(iz,:)*mcc/rho(iz)*100d0 \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),(cc(iz,isp)*mcc/2.5d0*100d0,isp=1,nspcc)
                     fprintf(file_tmp,fmt,z(iz), age(iz),ccx(iz,:)*mcc/rho(iz)*100d0);
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'sig-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_sig-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),d13c_blk(iz),d18o_blk(iz) \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),d13c_ocni,d18o_ocni
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),d13c_blk(iz),d18o_blk(iz));
                 end
                 fclose(file_tmp);
-                
-                %                open(unit=file_tmp,file=trim(adjustl(workdir))//'bur-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace')
+                % save file -- 
                 str = sprintf('%s/matlab_bur-%3.3i.txt',folder,itrec);
                 file_tmp = fopen(str,'wt');
+                fprintf(file_tmp, '%% Format [NEEDS UPDATING]: z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz) \n');
                 for iz = 1:nz
-                    %                write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz)
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz));
                 end
                 fclose(file_tmp);
-                
+                %
+                % *** summary plots ************************************* %
+                %
+                if global_var.user_plot
+                    figure;
+                    hold on;
+                    plot(sum(ccx(:,:),2).*mcc./rho(:)*100.0,-z(:),'Color','y','LineWidth',2.0);
+                    axis([0.0 100.0 -10.0 0.0]);
+                    title('Profile of solid CaCO_{3} content.');
+                    xlabel('CaCO_{3} content (wt%)');
+                    ylabel('Depth below sediment surface (cm)');
+                    scatter(sum(ccx(:,:),2).*mcc./rho(:)*100.0,-z(:),'o','Sizedata',30,'MarkerEdgeColor','k');
+                    figure;
+                    hold on;
+                    plot(-log10(prox(:))',-z(:),'Color','r','LineWidth',1.5);
+                    axis([6.5 8.5 -10.0 0.0]);
+                    title('Porewater pH profile.');
+                    xlabel('Porewater pH');
+                    ylabel('Depth below sediment surface (cm)');
+                    figure;
+                    hold on;
+                    plot(1.0E6*sum(rcc(:,:),2).*(1.0-global_var.poro'),-z(:),'LineStyle','-','Color','k','LineWidth',1.0);
+                    plot(1.0E6*oxco2(:),-z(:),'LineStyle','--','Color','m','LineWidth',1.5);
+                    plot(1.0E6*anco2(:),-z(:),'LineStyle',':','Color','m','LineWidth',1.5);
+                    axis([0.0 max(1.0E6*global_var.user_rainratio_in*global_var.user_cc_rain_flx_in,1.0E6*global_var.user_cc_rain_flx_in) -10.0 0.0]);
+                    title('Profile of CaCO_{3} dissolution and C_{org} oxidation rates');
+                    xlabel('Dissolution (/oxidation) rate (umol cm^{-3} yr^{-1})');
+                    ylabel('Depth below sediment surface (cm)');
+                    figure;
+                    hold on;
+                    plot(1.0E6*1.0E3*o2x(:),-z(:),'Color','b','LineWidth',1.5);
+                    plot(1.0E6*1.0E3*co3x(:)',-z(:),'Color','c','LineWidth',1.5);
+                    axis([0.0 150.0 -10.0 0.0]);
+                    title('Porewater profiles.');
+                    line([1.0E6*co3sat 1.0E6*co3sat], [-10.0 0.0],'LineStyle','--','Color','k','LineWidth',1.0);
+                    ylabel('Depth below sediment surface (cm)');
+                end
+                %
             end
-            
+            % *********************************************************** %          
         end
         
         function [rectime, cntrec, time_spn, time_trs, time_aft] = recordtime(nrec,wi, ztot, def_biotest, def_sense, def_nonrec, folder)
