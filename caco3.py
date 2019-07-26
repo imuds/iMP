@@ -2234,10 +2234,24 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     it=1
     flg_restart = False
     flg_timereset = False
-    nt_spn=400;nt_trs=5000;nt_aft=1000
+    warmup_done = False
+    nt_spn=800;nt_trs=5000;nt_aft=1000
     dt_save = dt
     while True: # time loop 
         if not sense:
+            nt_spn=400
+            if not warmup_done:
+                if it<11:  
+                    nt_spn = 80000
+                elif it<111:
+                    nt_spn = 8000
+                # elif it<31:
+                    # nt_spn = 800
+                else: 
+                    warmup_done = True
+                    time = 0.
+                    it = 1
+                    continue
             dt = timestep(time,time_spn,time_trs,time_aft
                 ,nt_spn,nt_trs,nt_aft
                 ,flg_restart,dt
@@ -2603,7 +2617,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 print >> file_err, time, dt \
                     , np.abs((o2dec/ox2om + alkdec - dicdec)/dicdec),o2dec/ox2om,alkdec,dicdec
         print>>file_totfrac, time,np.max(np.abs(frt[:] - 1e0))
-        if size :
+        if not size :
             if all(w>=0e0):  # not recording when burial is negative 
                 print>>file_sigmly,time-age[izrec],d13c_blk[izrec],d18o_blk[izrec] \
                     ,np.sum(ccx[izrec,:]*mcc[:])/rho[izrec]*100e0,ptx[izrec]*msed/rho[izrec]*100e0
