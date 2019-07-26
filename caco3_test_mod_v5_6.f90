@@ -474,18 +474,18 @@ do
     !! ///////// isotopes & fluxes settings ////////////// 
 #ifndef sense    
     nt_spn =400
-    ! if (.not.warmup_done) then 
-        ! if (it<11) then 
-            ! nt_spn = 80000
-        ! elseif (it<21) then
-            ! nt_spn = 8000
-        ! else 
-            ! warmup_done = .true.
-            ! time = 0d0
-            ! it = 1
-            ! cycle
-        ! endif 
-    ! endif 
+    if (.not.warmup_done) then 
+        if (it<11) then 
+            nt_spn = 80000
+        elseif (it<111) then
+            nt_spn = 8000
+        else 
+            warmup_done = .true.
+            time = 0d0
+            it = 1
+            cycle
+        endif 
+    endif 
     nt_trs = 5000
     nt_aft = 1000
     700 continue
@@ -1391,8 +1391,9 @@ enddo
 print'(6A)','ccflx','om2cc','dep:',(chr(ia,4),ia=1,3)
 ! pause
 !! FILES !!!!!!!!!
-workdir = 'C:/Users/YK/Desktop/Sed_res/'
-workdir = trim(adjustl(workdir))//'caco3_output/profiles/'
+! workdir = 'C:/Users/YK/Desktop/Sed_res/'
+workdir = './'
+workdir = trim(adjustl(workdir))//'output/profiles/'
 workdir = trim(adjustl(workdir))//'multi/'
 #ifdef test 
 workdir = trim(adjustl(workdir))//'test/'
@@ -4287,8 +4288,9 @@ character*25,intent(in)::chr(3,4)
 real(kind=8),intent(in)::dt,time
 integer(kind=4),intent(in)::it
 
-workdir = 'C:/Users/YK/Desktop/Sed_res/'
-workdir = trim(adjustl(workdir))//'caco3_output/res/'
+! workdir = 'C:/Users/YK/Desktop/Sed_res/'
+workdir = './'
+workdir = trim(adjustl(workdir))//'output/res/'
 workdir = trim(adjustl(workdir))//'multi/'
 #ifdef test 
 workdir = trim(adjustl(workdir))//'test/'
