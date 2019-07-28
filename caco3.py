@@ -4,10 +4,11 @@ signal tracking diagenesis model
 """
 import numpy as np
 import os
-from scipy.sparse import lil_matrix
-from scipy.sparse.linalg import spsolve
-#import scipy.linalg as la
-import scipy.linalg.lapack as lapack
+try:
+    from scipy.sparse import lil_matrix
+    from scipy.sparse.linalg import spsolve
+except:
+    print 'you do not have scipy, so if you choose to use sparse matrix solver, code will crush'
 if os.path.exists('./mocsy.dll'):import mocsy
 
 np.set_printoptions(
@@ -626,7 +627,8 @@ def omcalc(
     ymx = - ymx 
     # kai = np.linalg.solve(amx, ymx)
     # kai = la.solve(amx, ymx)
-    lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    kai = np.linalg.solve(amx, ymx)
     ymx[:]=kai[:].copy()
     omx[:] = ymx[:].copy() # now passing the solution to unknowns omx 
     return omx
@@ -765,7 +767,8 @@ def o2calc_ox(
     ymx = - ymx  # sign change; see above for the case of om 
     # ymx = np.linalg.solve(amx, ymx)
     # kai = la.solve(amx, ymx)
-    lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    kai = np.linalg.solve(amx, ymx)
     ymx[:]=kai[:].copy()
     o2x[:] = ymx[:].copy() # passing solutions to unknowns 
     return o2x
@@ -871,7 +874,8 @@ def o2calc_sbox(
     ymx = - ymx  # change signs 
     # kai = np.linalg.solve(amx, ymx) # solving
     # kai = la.solve(amx, ymx) # solving
-    lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    kai = np.linalg.solve(amx, ymx)
     ymx[:]=kai[:].copy()
     o2x[:] = ymx[:].copy() # passing solution to variable 
     return o2x 
@@ -1277,7 +1281,8 @@ def calccaco3sys(  #
         else:
             # kai = np.linalg.solve(amx, ymx)
             # kai = la.solve(amx, ymx) # solving
-            lu, piv, kai, info = lapack.dgesv(amx, ymx)
+            # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+            kai = np.linalg.solve(amx, ymx)
         # if itr ==1:time.sleep(5)
         ymx[:] = kai[:].copy()  
         if any(np.isnan(ymx)):
@@ -1583,7 +1588,8 @@ def claycalc(
         input()
     # kai = np.linalg.solve(amx, ymx)
     # kai = la.solve(amx, ymx) # solving
-    lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+    kai = np.linalg.solve(amx, ymx)
     ymx[:] = kai[:].copy()
     if np.isnan(amx).any():
         print 'NAN in amx:pt'
@@ -2001,7 +2007,8 @@ def signal_flx(time,time_spn,time_trs,time_aft
         ymx[4]=f14c_ocn*ccflxi
         # kai = np.linalg.solve(amx, ymx)
         # kai = la.solve(amx, ymx)
-        lu, piv, kai, info = lapack.dgesv(amx, ymx)
+        # lu, piv, kai, info = lapack.dgesv(amx, ymx)
+        kai = np.linalg.solve(amx, ymx)
         ymx[:]=kai[:].copy()
         flxfrc2 = np.zeros(nspcc)
         flxfrc2[:] = ymx[:]/ccflxi
