@@ -542,7 +542,7 @@ def calc_zox(
 def omcalc( 
     kom,omx     # in&output
     ,oxic,anoxic,o2x,om,nz,sporo,sporoi,sporof,o2th,komi  # input 
-    ,w,wi,dt,up,dwn,cnr,adf,trans,nspcc,labs,turbo2,nonlocal,omflx,poro,dz  # input 
+    ,w,wi,dt,up,dwn,cnr,adf,trans,nspcc,labs,turbo2,nonloc,omflx,poro,dz  # input 
     ):
     nsp = 1
     nmx=nz*nsp
@@ -634,7 +634,7 @@ def omcalc(
     return omx
     
 def calcflxom(  
-    sporo,om,omx,dt,w,dz,z,nz,turbo2,labs,nonlocal,poro
+    sporo,om,omx,dt,w,dz,z,nz,turbo2,labs,nonloc,poro
     ,up,dwn,cnr,adf,rho,mom,trans,kom,sporof,sporoi,wi,nspcc,omflx,workdir  # input 
     ):
     """ calculating the fluxes relevant to om diagenesis (and checking the calculation satisfies the difference equations) """
@@ -908,7 +908,7 @@ def calcflxo2_sbox(
 
 def calccaco3sys(  #
     ccx,dicx,alkx,rcc,dt  # in&output
-    ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic # input
+    ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonloc,sporo,sporoi,sporof,poro,dif_alk,dif_dic # input
     ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,omega,nz,tol,sparse,fact  # input
     ,dici,alki,ccx_th,showiter,w_pre,co2chem,mcc,rho,workdir
     ,krad
@@ -1357,12 +1357,12 @@ def calccaco3sys(  #
             print 'stop'
         if showiter:
             print 'co2 iteration',itr,error
-            print  'cc :',np.sum(ccx[0:nz:nz/5,:]*mcc[:],axis=1)/rho[0:nz:nz/5]*100e0
-            print  'dic:',dicx[0:nz:nz/5]#*1e3
-            print  'alk:',alkx[0:nz:nz/5]#*1e3
+            print  'cc :',np.sum(ccx[0:nz:np.int32(nz/5),:]*mcc[:],axis=1)/rho[0:nz:np.int32(nz/5)]*100e0
+            print  'dic:',dicx[0:nz:np.int32(nz/5)]#*1e3
+            print  'alk:',alkx[0:nz:np.int32(nz/5)]#*1e3
             print  '   ..... multiple cc species ..... '
             for isp in range(nspcc ):
-                print '{:03}'.format(isp+1),ccx[0:nz:nz/5,isp]*mcc[isp]/rho[0:nz:nz/5]*100e0
+                print '{:03}'.format(isp+1),ccx[0:nz:np.int32(nz/5),isp]*mcc[isp]/rho[0:nz:np.int32(nz/5)]*100e0
         if (ccx<0e0).any():
             print 'negative ccx, stop'
             print ccx
@@ -1391,7 +1391,7 @@ def calccaco3sys(  #
 def calcflxcaco3sys(  
     dw # inoutput
      ,nspcc,ccx,cc,dt,dz,rcc,adf,up,dwn,cnr,w,dif_alk,dif_dic,dic,dicx,alk,alkx,oxco2,anco2,trans    # input
-     ,turbo2,labs,nonlocal,sporof,it,nz,poro,sporo,ccflx,dici,alki,mvcc,tol,workdir        # input
+     ,turbo2,labs,nonloc,sporof,it,nz,poro,sporo,ccflx,dici,alki,mvcc,tol,workdir        # input
      ,deccc
      ): 
     cctflx =np.zeros((nspcc),dtype=np.float64)
@@ -1495,7 +1495,7 @@ def calcflxcaco3sys(
                     if trans[iiz,iz,isp+2]==0e0: continue
                     dw[iz] = dw[iz] - mvcc[isp]*(-trans[iiz,iz,isp+2]/dz[iz]*dz[iiz]*(1e0-poro[iiz])*ccx[iiz,isp])
             else :
-                if nonlocal[isp+2]:
+                if nonloc[isp+2]:
                     for iiz in range( nz):
                         if trans[iiz,iz,isp+2]==0e0: continue
                         dw[iz] = dw[iz] -mvcc[isp]*(-trans[iiz,iz,isp+2]/dz[iz]*ccx[iiz,isp])
@@ -1516,7 +1516,7 @@ def calcflxcaco3sys(
 def claycalc( 
     ptx
     ,nz,sporo,pt,dt,w,dz,detflx,adf,up,dwn,cnr,trans  # input
-    ,nspcc,labs,turbo2,nonlocal,poro,sporof,msed,workdir     # intput
+    ,nspcc,labs,turbo2,nonloc,poro,sporof,msed,workdir     # intput
     ):
     nsp = 1 #  only consider clay
     nmx = nz*nsp  # matrix is linear and solved like om and o2, so see comments there for calculation procedures 
@@ -1609,7 +1609,7 @@ def claycalc(
 
 def calcflxclay( 
     dw         # in&output
-    ,nz,sporo,ptx,pt,dt,dz,detflx,w,adf,up,dwn,cnr,sporof,trans,nspcc,turbo2,labs,nonlocal,poro          #  input
+    ,nz,sporo,ptx,pt,dt,dz,detflx,w,adf,up,dwn,cnr,sporof,trans,nspcc,turbo2,labs,nonloc,poro          #  input
     ,msed,mvsed # input
     ):
     pttflx = 0e0 
@@ -1651,7 +1651,7 @@ def calcflxclay(
                 if trans[iiz,iz,1]==0e0: continue
                 dw[iz] = dw[iz] - mvsed*(-trans[iiz,iz,1]*ptx[iiz]/dz[iz]*dz[iiz]*(1e0-poro[iiz]))
         else :
-            if nonlocal[1]: 
+            if nonloc[1]: 
                 for iiz in range( nz):
                     if trans[iiz,iz,1]==0e0: continue
                     dw[iz] = dw[iz] - mvsed*(-trans[iiz,iz,1]*ptx[iiz]/dz[iz])
@@ -1661,7 +1661,7 @@ def calcflxclay(
 def make_transmx(  
     labs,nspcc,turbo2,nobio,dz,sporo,nz,z,zmlref,size  # input
     ):
-    nonlocal = np.zeros(nspcc+2,dtype=bool)
+    nonloc = np.zeros(nspcc+2,dtype=bool)
     translabs=np.zeros((nz,nz),dtype=np.float64)
     if any(labs):
         translabs = np.loadtxt('./labs-mtx.txt')
@@ -1683,10 +1683,10 @@ def make_transmx(
         if z[iz]<=zrec:izrec = iz
         if z[iz]<=zrec2:izrec2 = iz
 
-    nonlocal[:]=False
+    nonloc[:]=False
     trans = np.zeros((nz,nz,nspcc+2),dtype=np.float64)
     for isp in range(nspcc+2):
-        if turbo2[isp] or labs[isp]:nonlocal[isp]=True
+        if turbo2[isp] or labs[isp]:nonloc[isp]=True
         dbio=np.zeros(nz,dtype=np.float64)
         for iz in range(nz):
             if z[iz]<=zml[isp]:
@@ -1725,13 +1725,13 @@ def make_transmx(
 
         trans[:,:,isp] = transdbio[:,:].copy()
 
-        if nonlocal[isp]: trans[:,:,isp] = translabs[:,:].copy()
+        if nonloc[isp]: trans[:,:,isp] = translabs[:,:].copy()
         if nobio[isp]: trans[:,:,isp] = 0.
 
-    if not any(nonlocal):
+    if not any(nonloc):
         for isp in range(nspcc+2-1):
-            if not (trans[:,:,isp+1]==trans[:,:,isp]).all():nonlocal[:] = True
-    return trans,izrec,izrec2,izml,nonlocal
+            if not (trans[:,:,isp+1]==trans[:,:,isp]).all():nonloc[:] = True
+    return trans,izrec,izrec2,izml,nonloc
 
 def recordprofile(itrec 
     ,nz,z,age,pt,ptx,msed,w,wi,rho,frt 
@@ -2222,12 +2222,12 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         time_trs = np.float64(5e3)
         time_aft = np.float64(time_trs*10.)
     rectime = np.zeros(nrec)
-    for itrec in range(0,nrec/3):
+    for itrec in range(0,np.int32(nrec/3)):
         rectime[itrec]=(itrec+1)*time_spn/float(nrec/3.)
-    for itrec in range(nrec/3,nrec*2/3):
-        rectime[itrec]=rectime[nrec/3-1]+(itrec-nrec/3+1)*time_trs/float(nrec/3.)
-    for itrec in range(nrec*2/3,nrec):
-        rectime[itrec]=rectime[nrec/3*2-1]+(itrec-nrec/3*2+1)*time_aft/float(nrec/3.)
+    for itrec in range(np.int32(nrec/3),np.int32(nrec*2/3)):
+        rectime[itrec]=rectime[np.int32(nrec/3)-1]+(itrec-nrec/3+1)*time_trs/float(nrec/3.)
+    for itrec in range(np.int32(nrec*2/3),nrec):
+        rectime[itrec]=rectime[np.int32(nrec/3*2)-1]+(itrec-nrec/3*2+1)*time_aft/float(nrec/3.)
     cntrec=0
     np.savetxt(workdir+'rectime.txt',rectime)
     depi = 3.5
@@ -2277,7 +2277,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         d13c_sp[3+4]=d13c_ocnf
         d18o_sp[3+4]=d18o_ocnf
     #!!!!!!!!! TRANSITION MATRIX !!!!!!!!!!!!!!!!!!!
-    trans,izrec,izrec2,izml,nonlocal = make_transmx(  
+    trans,izrec,izrec2,izml,nonloc = make_transmx(  
          labs,nspcc,turbo2,nobio,dz,sporo,nz,z,zmlref,size  # input
         )
     # ~~~~~~~~~~~~~~ diffusion & reaction~~~~~~~~~~~~~~
@@ -2387,6 +2387,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
             dt = dt_save
             d13c_ocn = 0. 
             d18o_ocn = 0.
+            capd47_ocn = 0.
         d13c_flx = np.sum(d13c_sp[:]*ccflx[:])/ccflxi
         d18o_flx = np.sum(d18o_sp[:]*ccflx[:])/ccflxi
         if not (track2 or isotrack):
@@ -2438,10 +2439,10 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 omx = omcalc( 
                     kom,omx     # in&output
                     ,oxic,anoxic,o2x,om,nz,sporo,sporoi,sporof,o2th,komi  # input 
-                    ,w,wi,dt,up,dwn,cnr,adf,trans,nspcc,labs,turbo2,nonlocal,omflx,poro,dz  # input 
+                    ,w,wi,dt,up,dwn,cnr,adf,trans,nspcc,labs,turbo2,nonloc,omflx,poro,dz  # input 
                     ) 
                 omadv,omdec,omdif,omrain,omres,omtflx,flg_restart = calcflxom(  
-                    sporo,om,omx,dt,w,dz,z,nz,turbo2,labs,nonlocal,poro,up,dwn,cnr
+                    sporo,om,omx,dt,w,dz,z,nz,turbo2,labs,nonloc,poro,up,dwn,cnr
                     ,adf,rho,mom,trans,kom,sporof,sporoi,wi,nspcc,omflx,workdir  # input 
                     )
                 if flg_restart:
@@ -2561,7 +2562,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                         if trans[iiz,iz,0]==0e0: continue
                         dw[iz] = dw[iz] - mvom*(-trans[iiz,iz,0]/dz[iz]*dz[iiz]*(1e0-poro[iiz])*omx[iiz])
                 else :
-                    if nonlocal[0]: 
+                    if nonloc[0]: 
                         for iiz in range( nz):
                             if trans[iiz,iz,0]==0e0: continue
                             dw[iz] = dw[iz] - mvom*(-trans[iiz,iz,0]/dz[iz]*omx[iiz])
@@ -2570,7 +2571,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
             ##  ~~~~~~~~~~~~~~~~~~~~~~ CaCO3 solid, ALK and DIC  calculation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             ccx,dicx,alkx,rcc,dt,flg_restart,w,deccc = calccaco3sys(  #
                 ccx,dicx,alkx,rcc,dt  # in&output
-                ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic # input
+                ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonloc,sporo,sporoi,sporof,poro,dif_alk,dif_dic # input
                 ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,omega,nz,tol,sparse,fact 
                 ,dici,alki,ccx_th,showiter,w_pre,co2chem,mcc,rho,workdir  # input
                 ,krad
@@ -2601,18 +2602,18 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 calcflxcaco3sys(  
                     dw # inoutput
                      ,nspcc,ccx,cc,dt,dz,rcc,adf,up,dwn,cnr,w,dif_alk,dif_dic,dic,dicx,alk,alkx,oxco2,anco2,trans    # input
-                     ,turbo2,labs,nonlocal,sporof,it,nz,poro,sporo,ccflx,dici,alki,mvcc,tol,workdir        # input
+                     ,turbo2,labs,nonloc,sporof,it,nz,poro,sporo,ccflx,dici,alki,mvcc,tol,workdir        # input
                      ,deccc
                      )
             # ~~~~ calculation clay  ~~~~~~~~~~~~~~~~~~
             ptx = claycalc( 
                 ptx
                 ,nz,sporo,pt,dt,w,dz,detflx,adf,up,dwn,cnr,trans  # input
-                ,nspcc,labs,turbo2,nonlocal,poro,sporof,msed,workdir     # intput
+                ,nspcc,labs,turbo2,nonloc,poro,sporof,msed,workdir     # intput
                 )
             pttflx,ptdif,ptadv,ptres,ptrain = calcflxclay( 
                 dw         # in&output
-                ,nz,sporo,ptx,pt,dt,dz,detflx,w,adf,up,dwn,cnr,sporof,trans,nspcc,turbo2,labs,nonlocal,poro           #  input
+                ,nz,sporo,ptx,pt,dt,dz,detflx,w,adf,up,dwn,cnr,sporof,trans,nspcc,turbo2,labs,nonloc,poro           #  input
                 ,msed,mvsed
                 )
             if it==0: 
@@ -2723,17 +2724,17 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
             if cntrec == nrec: break
         print  'time   :',time, np.max(np.abs(frt[:] - 1e0))
         print '~~~~ conc ~~~~'
-        print  'z  :',z[0:nz:nz/5]
-        print  'om :',omx[0:nz:nz/5]*mom/rho[0:nz:nz/5]*100e0
-        print  'o2 :',o2x[0:nz:nz/5]#*1e3
-        print  'cc :',np.sum(ccx[0:nz:nz/5,:]*mcc[:],axis=1)/rho[0:nz:nz/5]*100e0
-        print  'dic:',dicx[0:nz:nz/5]#*1e3
-        print  'alk:',alkx[0:nz:nz/5]#*1e3
-        print  'ph :',-np.log10(prox[0:nz:nz/5])
-        print  'sed:',ptx[0:nz:nz/5]*msed/rho[0:nz:nz/5]*100e0
-        print  '   ..... multiple cc species ..... '
+        print  'z  :',z[0:nz:np.int32(nz/5)]
+        print  'om :',omx[0:nz:np.int32(nz/5)]*mom/rho[0:nz:np.int32(nz/5)]*100e0
+        print  'o2 :',o2x[0:nz:np.int32(nz/5)]#*1e3
+        print  'cc :',np.sum(ccx[0:nz:np.int32(nz/5),:]*mcc[:],axis=1)/rho[0:nz:np.int32(nz/5)]*100e0
+        print  'dic:',dicx[0:nz:np.int32(nz/5)]#*1e3
+        print  'alk:',alkx[0:nz:np.int32(nz/5)]#*1e3
+        print  'ph :',-np.log10(prox[0:nz:np.int32(nz/5)])
+        print  'sed:',ptx[0:nz:np.int32(nz/5)]*msed/rho[0:nz:np.int32(nz/5)]*100e0
+        print  '   ..... multiple cc classes ..... '
         for isp in range(nspcc ):
-            print '{:03}'.format(isp+1),ccx[0:nz:nz/5,isp]*mcc[isp]/rho[0:nz:nz/5]*100e0
+            print '{:03}'.format(isp+1),ccx[0:nz:np.int32(nz/5),isp]*mcc[isp]/rho[0:nz:np.int32(nz/5)]*100e0
         print  '++++ flx ++++'
         print  'flx:',np.array(['tflx   ','adv    ','dif    ','omrxn ','ccrxn ','ccrad ','rain   ','res    '])
         print  'om :',np.array([ omtflx, omadv,  omdif, omdec,0e0,0e0,omrain, omres])
@@ -2743,14 +2744,14 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         print  'dic:',np.array([dictflx, 0e0,dicdif, dicdec,  dicdis, 0e0,0e0,dicres ])
         print  'alk:',np.array([alktflx, 0e0, alkdif, alkdec, alkdis, alkrad, 0e0, alkres ])
         print  'sed:',np.array([pttflx, ptadv,ptdif,  0e0, 0e0, 0e0, ptrain, ptres])
-        print  '   ..... multiple cc species ..... '
+        print  '   ..... multiple cc classes ..... '
         for isp in range(nspcc ):
             print  '{:03}'.format(isp+1), np.array([cctflx[isp], ccadv[isp], ccdif[isp],0e0,ccdis[isp], ccrad[isp], ccrain[isp], ccres[isp]])
         print '==== burial etc ===='
-        print  'z  :',z[0:nz:nz/5]
-        print  'w  :',w[0:nz:nz/5]
-        print  'rho:',rho[0:nz:nz/5]
-        print  'frc:',frt[0:nz:nz/5]
+        print  'z  :',z[0:nz:np.int32(nz/5)]
+        print  'w  :',w[0:nz:np.int32(nz/5)]
+        print  'rho:',rho[0:nz:np.int32(nz/5)]
+        print  'frc:',frt[0:nz:np.int32(nz/5)]
         print ''
         ## in theory, o2dec/ox2om + alkdec = dicdec = omdec (in absolute value)
         if om2cc != 0e0:
@@ -2841,17 +2842,22 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     file_tmp.close()
 
 def getinput():
-    co2chem     = raw_input('Enter how to calculate CO2 chemistry (co2 or mocsy): ')  
-    ccflxi      = raw_input('Enter CaCO3 rain flux in mol cm-2 yr-1: ')  
-    om2cc       = raw_input('Enter OM/CaCO3 rain ratio: ') 
-    dep         = raw_input('Enter water depth in km: ')  
-    dt          = raw_input('Enter time step in yr: ')  
-    fl          = raw_input('Enter simulation name: ') 
-    biot        = raw_input('Enter bioturbation style (nobio, fickian, labs or turbo2): ') 
-    oxonly      = raw_input('Oxic only for OM degradation? (True or False): ') 
-    runmode     = raw_input('Enter simulation mode (sense, diss. exp., size, biotest, track2, isotrack or iso_kie): ') 
-    if len(co2chem)==0:                # no input
-        co2chem = 'co2'                # default
+    print ''
+    print '*** just press [enter] to choose default parameter ***'
+    print ''
+    co2chem     = raw_input('Enter how to calculate CO2 chemistry [default= co2] (co2 or mocsy): ')  
+    ccflxi      = raw_input('Enter CaCO3 rain flux in mol cm-2 yr-1 [default= 12e-6]: ')  
+    om2cc       = raw_input('Enter OM/CaCO3 rain ratio [default= 0.7]: ') 
+    dep         = raw_input('Enter water depth in km [default= 3.5]: ')  
+    dt          = raw_input('Enter time step in yr [default= 1e3]: ')  
+    fl          = raw_input('Enter simulation name [default= noname]: ') 
+    biot        = raw_input('Enter bioturbation style [default= fickian] (nobio, fickian, labs or turbo2): ') 
+    oxonly      = raw_input('Oxic only for OM degradation [default= False]? (True or False): ') 
+    runmode     = raw_input('Enter simulation mode [default= diss. exp.] (sense, diss. exp., size, biotest, track2, isotrack or iso_kie): ') 
+    sparse      = raw_input('Want to use sparse matrix solver [default= False]? (True or False): ') 
+    showiter    = raw_input('Want to see iteration processes [default= False]? (True or False): ') 
+    if len(co2chem)==0:               # no input
+        co2chem = 'co2'               # default
     if len(ccflxi)==0:                # no input
         ccflxi = 12e-6                # default
     else:
@@ -2869,15 +2875,23 @@ def getinput():
     else:
         dt = eval(dt)
     if len(fl)==0:                    # no input
-        fl = '50kyr-dis4_5'           # default or you can specify the name here
+        fl = 'noname'                 # default or you can specify the name here
     if len(oxonly)==0:                # no input
         oxonly = False                # default 
     else:
         oxonly = eval(oxonly)
+    if len(sparse)==0:                # no input
+        sparse = False                # default 
+    else:
+        sparse = eval(sparse)
+    if len(showiter)==0:              # no input
+        showiter = False              # default 
+    else:
+        showiter = eval(showiter)
     # co2chem = 'co2'
     # co2chem = 'co2h2o'              # dic = co2+hco3+co3; alk = hco3+2*co3+oh-h
-    sparse = True
-    showiter = False
+    # sparse = True
+    # showiter = False
     return ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter
 
 if __name__ == '__main__':
