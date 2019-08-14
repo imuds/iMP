@@ -7,6 +7,7 @@ implicit none
 #include <defines.h>
 integer(kind=4)nz      ! grid number
 integer(kind=4)nspcc   ! number of CaCO3 species 
+integer(kind=4)nspcc_wot   ! number of CaCO3 species when not tracking time 
 
 #ifndef nzinput
 #define nzinput 100
@@ -26,8 +27,14 @@ integer(kind=4)nspcc   ! number of CaCO3 species
 #endif
 #endif 
 
+parameter(nspcc_wot=nspccinput)
+
 parameter(nz=nzinput)  
-parameter(nspcc=nspccinput)
+#ifndef timetrack
+parameter(nspcc=nspcc_wot)
+#else
+parameter(nspcc=nspcc_wot*2)
+#endif 
 
 real(kind=8),intent(in)::ccflxi,om2cc,depi2,dti2
 character*255,intent(in)::filechr,biotmode
@@ -44,6 +51,8 @@ real(kind=8) d13c_blkf(nz), d18o_blkf(nz),  d13c_blkc(nz), d18o_blkc(nz) ! subsc
 real(kind=8) d13c_flx, d18o_flx  ! d13c signal averaged over flux values, d18o counterpart 
 real(kind=8) d13c_ocni, d13c_ocnf, d13c_ocn  ! initial value of ocean d13c, final value of ocean d13c, ocean d13c  
 real(kind=8) d18o_ocni, d18o_ocnf, d18o_ocn  ! the same as above expect 18o insted of 13c
+!!! added to make depth stack ?? 7/31/2019 
+real(kind=8) time_sp(nspcc), time_blk(nz), time_blkc(nz), time_blkf(nz), time_flx, time_min, time_max
 !!!!!!!!!!!! used only when isotrack is on !!!!!!!!!!!!!!!!!!!!!!!!
 real(kind=8) capd47_ocni,capd47_ocnf
 real(kind=8) capd47_ocn
@@ -172,7 +181,7 @@ integer(kind=4) :: izox_minerr =0  ! grid number where error in zox is minimum
 real(kind=8) up(nz), dwn(nz), cnr(nz) ! advection calc. schemes; up or down wind, or central schemes if 1
 real(kind=8) adf(nz)  ! factor to make sure mass conversion 
 real(kind=8) :: time, dt = 1d2  ! time and time step 
-real(kind=8) rectime(nrec), time_max ! recording time and maximum time 
+real(kind=8) rectime(nrec) ! recording time 
 real(kind=8) dumreal  !  dummy variable 
 real(kind=8) time_spn, time_trs, time_aft  ! time durations of spin-up, signal transition and after transition  
 ! fluxes, adv, dec, dis, dif, res, t and rain denote burial, decomposition, dissoution, diffusion, residual, time change and rain fluxes, respectively  
@@ -349,7 +358,7 @@ call burial_pre(  &
 ! depth -age conversion 
 call dep2age(  &
     age &  ! output 
-    ,dz,w,nz  &  ! input
+    ,dz,w,nz,poro  &  ! input
    )
 ! determine factors for upwind scheme to represent burial advection
 call calcupwindscheme(  &
@@ -384,6 +393,16 @@ d13c_ocni = 2d0  ! initial ocean d13c value
 d13c_ocnf = -1d0 ! ocean d13c value with maximum change  
 d18o_ocni = 1d0 ! initial ocean d18o value 
 d18o_ocnf = -1d0 ! ocean d18o value with maximum change 
+! #ifdef timetrack
+! d18o_ocni = 0d0 ! initial ocean d18o value 
+! d18o_ocnf = (time_spn+time_trs+time_aft)*(1.01d0) ! ocean d18o value with maximum change 
+! d13c_ocni = 0d0 ! initial ocean d18o value 
+! d13c_ocnf = (time_spn+time_trs+time_aft)*(1.01d0) ! ocean d18o value with maximum change 
+time_min = 0d0
+time_max =  (time_spn+time_trs+time_aft)*1.1d0
+time_sp(1:nspcc/2) = time_max
+time_sp(1+nspcc/2:nspcc) = 0d0
+! #endif 
 capd47_ocni = 0.6d0
 capd47_ocnf = 0.5d0
 
@@ -397,7 +416,7 @@ call sig2sp_pre(  &  ! end-member signal assignment
 !!!! TRANSITION MATRIX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 call make_transmx(  &
     trans,izrec,izrec2,izml,nonlocal  & ! output 
-    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref  & ! input
+    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
     )
 
 !~~~~~~~~diffusion & reaction~~~~~~~~~~~~~~~~~~~~~~
@@ -461,7 +480,7 @@ anco2 = 0d0  ! anoxic counterpart
 call recordprofile(  &
     0,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
     ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-    ,d17o_blk,d14c_age,capd47  &
+    ,d17o_blk,d14c_age,capd47,time_blk,poro  &
     )
 #endif
 !~~~~~~~~~~~~~~~~~~~~~~~~
@@ -474,6 +493,13 @@ do
     !! ///////// isotopes & fluxes settings ////////////// 
 #ifndef sense    
     nt_spn =400
+    nt_trs = 5000
+    nt_aft = 1000
+#ifdef biotest
+    nt_spn =40
+    nt_trs = 500
+    nt_aft = 100
+#endif 
     if (.not.warmup_done) then 
         if (it<11) then 
             nt_spn = 80000
@@ -486,14 +512,12 @@ do
             cycle
         endif 
     endif 
-    nt_trs = 5000
-    nt_aft = 1000
     700 continue
     call timestep(time,nt_spn,nt_trs,nt_aft,dt,time_spn,time_trs,time_aft)
     call signal_flx(  &
         d13c_ocn,d18o_ocn,ccflx,d18o_sp,d13c_sp,cntsp  &
         ,time,time_spn,time_trs,time_aft,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,nspcc,ccflxi,it,flxfini,flxfinf  &
-        ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs  &
+        ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs,time_min,time_max  &
         ) 
     call bdcnd(   &
         time,dep,time_spn,time_trs,time_aft,depi,depf  &
@@ -512,6 +536,15 @@ do
     endif 
 #endif 
 #endif
+    
+#ifdef timetrack    
+    time_flx = sum(time_sp(:)*ccflx(:))/ccflxi
+    if (abs(time_flx - time)>tol ) then 
+        print*,'error in time tracer calc'
+        write(file_err,*)'error in time tracer calc',time,time_flx
+        stop
+    endif 
+#endif 
 
 #else 
     dt = dti
@@ -529,19 +562,21 @@ do
 
 #ifndef nonrec 
     if (it==1) then    !! recording boundary conditions 
-        if (.not. flg_500) then 
+        if (.not. flg_500 .and. warmup_done) then 
             write(file_bound,*) '#time  d13c_ocn  d18o_ocn, D47, fluxes of cc:',(isp,isp=1,nspcc) & 
-                ,'temp  dep  sal  dici  alki  o2i'
+                ,'temp  dep  sal  dici  alki  o2i', '  sporo(1)xw(1) sporo(izrec)xw(izrec)' & 
+                ,'sporo(izrec2)xw(izrec2) sporo(nz)xw(nz)'
         endif 
     endif 
 #ifndef size 
     !  recording fluxes of two types of caco3 separately 
-    if (.not. flg_500) write(file_bound,*) time, d13c_ocn, d18o_ocn, capd47_ocn,(ccflx(isp),isp=1,nspcc)  &
-        ,temp, dep, sal,dici,alki, o2i
+    if (.not. flg_500 .and. warmup_done) write(file_bound,*) time, d13c_ocn, d18o_ocn, capd47_ocn,(ccflx(isp),isp=1,nspcc)  &
+        ,temp, dep, sal,dici,alki, o2i, sporo(1)*w(1), sporo(izrec)*w(izrec), sporo(izrec2)*w(izrec2), sporo(nz)*w(nz)
 #else 
     !  do not record separately 
-    if (.not. flg_500) write(file_bound,*) time, d13c_ocn, d18o_ocn, capd47_ocn,sum(ccflx(1:4)),sum(ccflx(5:8)) &
-        ,(ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
+    if (.not. flg_500 .and. warmup_done) write(file_bound,*) time, d13c_ocn, d18o_ocn, capd47_ocn,sum(ccflx(1:4)),sum(ccflx(5:8)) &
+        ,(ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i, sporo(1)*w(1)  &
+        , sporo(izrec)*w(izrec), sporo(izrec2)*w(izrec2), sporo(nz)*w(nz)
 #endif 
 #endif 
 
@@ -1031,7 +1066,7 @@ do
     ! call dep2age()
     call dep2age(  &
         age &  ! output 
-        ,dz,w,nz  &  ! input
+        ,dz,w,nz,poro  &  ! input
        )
 
     ! ---------------------
@@ -1041,13 +1076,29 @@ do
         d18o_blk(iz) = sum(d18o_sp(:)*ccx(iz,:))/sum(ccx(iz,:))
         d13c_blk(iz) = sum(d13c_sp(:)*ccx(iz,:))/sum(ccx(iz,:))
 #ifdef size
+#ifndef timetrack
         d18o_blkf(iz) = sum(d18o_sp(1:4)*ccx(iz,1:4))/sum(ccx(iz,1:4))
         d13c_blkf(iz) = sum(d13c_sp(1:4)*ccx(iz,1:4))/sum(ccx(iz,1:4))
         d18o_blkc(iz) = sum(d18o_sp(5:8)*ccx(iz,5:8))/sum(ccx(iz,5:8))
         d13c_blkc(iz) = sum(d13c_sp(5:8)*ccx(iz,5:8))/sum(ccx(iz,5:8))
+#else 
+        d18o_blkf(iz) = (sum(d18o_sp(1:4)*ccx(iz,1:4)) &
+            + sum(d18o_sp(1+nspcc/2:4+nspcc/2)*ccx(iz,1+nspcc/2:4+nspcc/2))) &
+            /(sum(ccx(iz,1:4)) + sum(ccx(iz,1+nspcc/2:4+nspcc/2))  )
+        d13c_blkf(iz) = (sum(d13c_sp(1:4)*ccx(iz,1:4)) &
+            + sum(d13c_sp(1+nspcc/2:4+nspcc/2)*ccx(iz,1+nspcc/2:4+nspcc/2)))  &
+            /( sum(ccx(iz,1:4)) + sum(ccx(iz,1+nspcc/2:4+nspcc/2)) ) 
+        d18o_blkc(iz) = ( sum(d18o_sp(5:8)*ccx(iz,5:8))  &
+            + sum(d18o_sp(5+nspcc/2:8+nspcc/2)*ccx(iz,5+nspcc/2:8+nspcc/2)) )  &
+            /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+nspcc/2:8+nspcc/2)) )
+        d13c_blkc(iz) = ( sum(d13c_sp(5:8)*ccx(iz,5:8)) &
+            + sum(d13c_sp(5+nspcc/2:8+nspcc/2)*ccx(iz,5+nspcc/2:8+nspcc/2))  )  &
+            /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+nspcc/2:8+nspcc/2)) ) 
+#endif 
 #endif 
 !!!!!  direct tracking 
 #ifdef isotrack 
+#ifndef timetrack
         r18o_blk(iz) = sum((/ccx(iz,i12c18o),ccx(iz,i13c18o)/))  &
             /sum((/3d0*ccx(iz,i12c16o),3d0*ccx(iz,i13c16o),2d0*ccx(iz,i12c18o),2d0*ccx(iz,i13c18o)/))
         r13c_blk(iz) = sum((/ccx(iz,i13c16o),ccx(iz,i13c18o)/))  &
@@ -1064,35 +1115,36 @@ do
         r47s = r13c_blk(iz)*r18o_blk(iz) 
         
         capd47(iz) = ((r47/r47s-1d0) )*1d3
-
-#ifdef fullclump
-        !!! not yet implemented
-        r18o_blk(iz) = sum((/ccx(iz,i12c18o),ccx(iz,i13c18o),ccx(iz,i12c17o18o),1d0*ccx(iz,i12c18o18o)/))  &
-            /sum((/ccx(iz,i12c18o),1d0*ccx(iz,i12c16o),ccx(iz,i12c17o) &
-            ,1d0*ccx(iz,i13c16o),ccx(iz,i13c17o),ccx(iz,i13c18o)/))
-        r17o_blk(iz) = sum((/ccx(iz,i12c17o),ccx(iz,i13c17o),ccx(iz,i12c17o18o),1d0*ccx(iz,i12c17o17o)/))  &
-            /sum((/ccx(iz,i12c18o),1d0*ccx(iz,i12c16o),ccx(iz,i12c17o) &
-            ,1d0*ccx(iz,i13c16o),ccx(iz,i13c17o),ccx(iz,i13c18o)/))
-        r13c_blk(iz) = sum((/ccx(iz,i13c16o),ccx(iz,i13c18o),ccx(iz,i13c17o)/))  &
-            /sum((/ccx(iz,i12c18o),ccx(iz,i12c16o),ccx(iz,i12c17o) &
-            ,ccx(iz,i12c17o18o),ccx(iz,i12c17o17o),ccx(iz,i12c18o18o)/)) 
+#else
+        r18o_blk(iz) = sum((/ccx(iz,i12c18o),ccx(iz,i13c18o),ccx(iz,i12c18o+nspcc/2),ccx(iz,i13c18o+nspcc/2)/))  &
+            /sum((/3d0*ccx(iz,i12c16o),3d0*ccx(iz,i13c16o),2d0*ccx(iz,i12c18o),2d0*ccx(iz,i13c18o)  &
+            ,3d0*ccx(iz,i12c16o+nspcc/2),3d0*ccx(iz,i13c16o+nspcc/2),2d0*ccx(iz,i12c18o+nspcc/2),2d0*ccx(iz,i13c18o+nspcc/2)/))
+        r13c_blk(iz) = sum((/ccx(iz,i13c16o),ccx(iz,i13c18o),ccx(iz,i13c16o+nspcc/2),ccx(iz,i13c18o+nspcc/2)/))  &
+            /sum((/ccx(iz,i12c18o),ccx(iz,i12c16o),ccx(iz,i12c18o+nspcc/2),ccx(iz,i12c16o+nspcc/2)/))
+        r17o_blk(iz) = 0d0
         d18o_blk(iz) = r2d(r18o_blk(iz),r18o_pdb)
         d17o_blk(iz) = r2d(r17o_blk(iz),r17o_pdb)
         d13c_blk(iz) = r2d(r13c_blk(iz),r13c_pdb)
-        d14c_age(iz) = -8033d0*log(ccx(iz,i14c)   &
-            /sum((/ccx(iz,i12c18o),ccx(iz,i12c16o),ccx(iz,i12c17o) &
-            ,ccx(iz,i12c17o18o),ccx(iz,i12c17o17o),ccx(iz,i12c18o18o)/)) &
+        d14c_age(iz) = -8033d0*log((ccx(iz,i14c)+ccx(iz,i14c+nspcc/2))   &
+            /sum((/ccx(iz,i12c18o),ccx(iz,i12c16o),ccx(iz,i12c18o+nspcc/2),ccx(iz,i12c16o+nspcc/2)/)) &
             /r14ci) ! Stuiver and Polach (1977)
-        r45 = (ccx(iz,i13c16o)+ccx(iz,i12c17o))/ccx(iz,i12c16o)
-        r45s = r13c_blk(iz) + 1d0*r17o_blk(iz)
-        r46 = (ccx(iz,i13c17o)+ccx(iz,i12c18o)+ccx(iz,i12c17o17o))/ccx(iz,i12c16o)
-        r46s = 1d0*r13c_blk(iz)*r17o_blk(iz) +1d0*r18o_blk(iz) + r17o_blk(iz)**2d0
-        r47 = (ccx(iz,i13c18o)+ccx(iz,i12c17o18o))/ccx(iz,i12c16o)
-        r47s = 1d0*r13c_blk(iz)*r18o_blk(iz) + 1d0*r18o_blk(iz)*r17o_blk(iz)
-        capd47(iz) = ((r47/r47s-1d0) - (r46/r46s-1d0) - (r45/r45s-1d0))*1d3
+        
+        r47 = (ccx(iz,i13c18o)+ccx(iz,i13c18o+nspcc/2))/(ccx(iz,i12c16o)+ccx(iz,i12c16o+nspcc/2))
+        r47s = r13c_blk(iz)*r18o_blk(iz) 
+        
+        capd47(iz) = ((r47/r47s-1d0) )*1d3
 #endif 
 #endif 
 
+#ifdef timetrack 
+        time_blk(iz) = sum(time_sp(:)*ccx(iz,:))/sum(ccx(iz,:))
+#ifdef size 
+        time_blkf(iz) = (sum(time_sp(1:4)*ccx(iz,1:4)) + sum(time_sp(1+nspcc/2:4+nspcc/2)*ccx(iz,1+nspcc/2:4+nspcc/2)) )  &
+            /( sum(ccx(iz,1:4)) + sum(ccx(iz,1+nspcc/2:4+nspcc/2))  )
+        time_blkc(iz) = ( sum(time_sp(5:8)*ccx(iz,5:8)) + sum(time_sp(5+nspcc/2:8+nspcc/2)*ccx(iz,5+nspcc/2:8+nspcc/2)) ) &
+            /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+nspcc/2:8+nspcc/2)) )
+#endif 
+#endif 
     enddo
 
     !!!!! PRINTING RESULTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1104,7 +1156,7 @@ do
         call recordprofile(  &
             cntrec,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
             ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-            ,d17o_blk,d14c_age,capd47  &
+            ,d17o_blk,d14c_age,capd47,time_blk,poro  &
             )
         print*,'****** RECORD FINISHED ********'
         print*
@@ -1145,7 +1197,7 @@ do
     call sigrec(  &
         nz,file_sigmly,file_sigmlyd,file_sigbtm,w,time,age,izrec,d13c_blk,d13c_blkc &
         ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,mcc,rho,ptx,msed,izrec2,nspcc  & 
-        ,d14c_age,capd47   &  
+        ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo   &  
         )
 #endif 
 
@@ -1210,6 +1262,8 @@ do iz = 1, nz
         dz(iz) = ztot*log((beta+(z(iz)/ztot)**2d0)/(beta-(z(iz)/ztot)**2d0))/log((beta+1d0)/(beta-1d0)) - sum(dz(:iz-1))
     endif
 enddo
+
+! dz = ztot/nz  ! when implementing regular grid
 
 do iz=1,nz  ! depth is defined at the middle of individual layers 
     if (iz==1) z(iz)=dz(iz)*0.5d0  
@@ -1470,12 +1524,12 @@ real(kind=8),intent(in)::poroi
 real(kind=8),intent(out)::porof,sporoi,sporof
 real(kind=8) calgg,pore_max,exp_pore
 
-poro = poroi  ! constant porosity 
 ! ----------- Archer's parameterization 
 calgg = 0.0d0  ! caco3 in g/g (here 0 is assumed )
 pore_max =  1d0 - ( 0.483d0 + 0.45d0 * calgg) / 2.5d0  ! porosity at the bottom 
 exp_pore = 0.25d0*calgg + 3.d0 *(1d0-calgg)  ! scale depth of e-fold decrease of porosity 
 poro = EXP(-z/exp_pore) * (1.d0-pore_max) + pore_max 
+! poro = poroi  ! constant porosity 
 porof = pore_max  ! porosity at the depth 
 porof = poro(nz)  ! this assumes zero-porosity gradient at the depth; these choices do not affect the calculation 
 sporof = 1d0-porof  !  volume fraction of solids at bottom depth  
@@ -1510,16 +1564,17 @@ endsubroutine burial_pre
 !**************************************************************************************************************************************
 subroutine dep2age(  &
     age &  ! output 
-    ,dz,w,nz  &  ! input
+    ,dz,w,nz,poro  &  ! input
    )
 implicit none
 integer(kind=4),intent(in)::nz
-real(kind=8),intent(in)::dz(nz),w(nz)
+real(kind=8),intent(in)::dz(nz),w(nz),poro(nz)
 real(kind=8),intent(out)::age(nz)
 real(kind=8)::dage(nz)
 integer(kind=4) iz
 
 dage = dz/w  ! time spans of individual sediment layers 
+! dage = dz/((1d0-poro)*w)  ! time spans of individual sediment layers 
 age = 0d0
 do iz=1,nz  ! assigning ages to depth in the same way to assign depths to individual grids 
     if (iz==1) age(iz)=dage(iz)*0.5d0  
@@ -1688,6 +1743,7 @@ implicit none
 integer(kind=4),intent(in)::nspcc
 real(kind=8),dimension(nspcc),intent(out)::d13c_sp,d18o_sp
 real(kind=8),intent(in)::d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf 
+integer(kind=4) isp 
 
 #ifndef sense
 !  four end-member caco3 species interpolation 
@@ -1699,6 +1755,16 @@ d13c_sp(3)=d13c_ocnf
 d18o_sp(3)=d18o_ocni
 d13c_sp(4)=d13c_ocnf
 d18o_sp(4)=d18o_ocnf
+#ifdef timetrack 
+d13c_sp(5)=d13c_ocni
+d18o_sp(5)=d18o_ocni
+d13c_sp(6)=d13c_ocni
+d18o_sp(6)=d18o_ocnf
+d13c_sp(7)=d13c_ocnf
+d18o_sp(7)=d18o_ocni
+d13c_sp(8)=d13c_ocnf
+d18o_sp(8)=d18o_ocnf
+#endif 
 #else
 d18o_sp=0d0
 d13c_sp=0d0
@@ -1714,6 +1780,18 @@ d13c_sp(7)=d13c_ocnf
 d18o_sp(7)=d18o_ocni
 d13c_sp(8)=d13c_ocnf
 d18o_sp(8)=d18o_ocnf
+#ifdef timetrack 
+do isp=2,3
+    d13c_sp(1+4*isp)=d13c_ocni
+    d18o_sp(1+4*isp)=d18o_ocni
+    d13c_sp(2+4*isp)=d13c_ocni
+    d18o_sp(2+4*isp)=d18o_ocnf
+    d13c_sp(3+4*isp)=d13c_ocnf
+    d18o_sp(3+4*isp)=d18o_ocni
+    d13c_sp(4+4*isp)=d13c_ocnf
+    d18o_sp(4+4*isp)=d18o_ocnf
+enddo
+#endif 
 #endif 
 
 endsubroutine sig2sp_pre
@@ -1722,7 +1800,7 @@ endsubroutine sig2sp_pre
 !**************************************************************************************************************************************
 subroutine make_transmx(  &
     trans,izrec,izrec2,izml,nonlocal  & ! output 
-    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref  & ! input
+    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
     )
 implicit none
 integer(kind=4),intent(in)::nspcc,nz,file_tmp
@@ -1731,7 +1809,8 @@ logical,intent(in)::labs(nspcc+2),turbo2(nspcc+2),nobio(nspcc+2)
 real(kind=8),intent(out)::trans(nz,nz,nspcc+2)
 logical,intent(out)::nonlocal(nspcc+2)
 integer(kind=4),intent(out)::izrec,izrec2,izml
-integer(kind=4) nlabs,ilabs,iz,isp
+character*255,intent(in)::workdir
+integer(kind=4) nlabs,ilabs,iz,isp, iiz
 real(kind=8) :: translabs(nz,nz),translabs_tmp(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz)
 real(kind=8) :: zml(nspcc+2),zrec,zrec2,probh
 character*25 dumchr(3)
@@ -1765,6 +1844,12 @@ zml(2+1)=20d0   ! fine species have larger mixed layers
 zml(2+2)=20d0   ! note that total number of solid species is 2 + nspcc including om, clay and nspcc of caco3; thus index has '2+'
 zml(2+3)=20d0 
 zml(2+4)=20d0 
+#ifdef timetrack
+zml(2+1+nspcc/2)=20d0   ! fine species have larger mixed layers 
+zml(2+2+nspcc/2)=20d0   ! note that total number of solid species is 2 + nspcc including om, clay and nspcc of caco3; thus index has '2+'
+zml(2+3+nspcc/2)=20d0 
+zml(2+4+nspcc/2)=20d0 
+#endif 
 zrec = 1.1d0*minval(zml)  ! first recording is made below minimum depth of mixed layer 
 zrec2 = 1.1d0*maxval(zml) ! second recording is made below maximum depth of mixed layer
 ! zrec = minval(zml)  ! first recording is made below minimum depth of mixed layer 
@@ -1777,6 +1862,12 @@ do iz=1,nz ! determine grid locations where signal recording is made
 enddo
 ! izrec = min(nz,izrec+1)
 ! izrec2 = min(nz,izrec2+1)
+
+open(unit=file_tmp,file=trim(adjustl(workdir))//'recz.txt',action='write',status='unknown')
+write(file_tmp,*) 1,izrec,z(izrec)  
+write(file_tmp,*) 2,izrec2,z(izrec2)  
+write(file_tmp,*) 3,nz,z(nz)  
+close(file_tmp)
 
 nonlocal = .false. ! initial assumption 
 do isp=1,nspcc+2
@@ -1811,11 +1902,23 @@ do isp=1,nspcc+2
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
     ! transition matrix for random mixing 
     transturbo2 = 0d0
+    ! ending up in upward mixing 
     probh = 0.0010d0
     transturbo2(:izml,:izml) = probh  ! arbitrary assumed probability 
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
        transturbo2(iz,iz)=-probh*(izml-1)  
     enddo
+    ! trying real homogeneous 
+    ! transturbo2 = 0d0
+    ! probh = 0.0001d0
+    ! do iz=1,izml 
+        ! do iiz=1,izml
+            ! if (iiz/=iz) then 
+                ! transturbo2(iiz,iz) = probh*dz(iz)/dz(iiz)
+                ! transturbo2(iiz,iiz) = transturbo2(iiz,iiz) - transturbo2(iiz,iz)
+            ! endif 
+        ! enddo
+    ! enddo
 
     if (turbo2(isp)) translabs = transturbo2   ! translabs temporarily used to represents nonlocal mixing 
 
@@ -1862,8 +1965,14 @@ kcc = kcci
 krad = 0d0
 #ifdef isotrack
 krad(:,i14c) = k14ci 
+#ifdef timetrack
+krad(:,i14c+nspcc/2) = k14ci 
+#endif 
 #ifdef kie 
 kcc(:,i13c18o) = kcci*(1d0-5d-5) 
+#ifdef timetrack 
+kcc(:,i13c18o+nspcc/2) = kcci*(1d0-5d-5) 
+#endif 
 #endif 
 #endif 
 
@@ -1873,6 +1982,12 @@ kcc(:,1) = kcci*10d0
 kcc(:,2) = kcci*10d0
 kcc(:,3) = kcci*10d0
 kcc(:,4) = kcci*10d0
+#ifdef timetrack 
+kcc(:,1+nspcc/2) = kcci*10d0
+kcc(:,2+nspcc/2) = kcci*10d0
+kcc(:,3+nspcc/2) = kcci*10d0
+kcc(:,4+nspcc/2) = kcci*10d0
+#endif 
 #endif 
 
 keq1 = calceq1(temp,sal,dep) ! carbonic acid dissociation const. function called from caco3_therm.f90 
@@ -1890,12 +2005,12 @@ endsubroutine coefs
 subroutine recordprofile(  &
     itrec,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
     ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-    ,d17o_blk,d14c_age,capd47  &
+    ,d17o_blk,d14c_age,capd47,time_blk,poro  &
     )
 implicit none 
 integer(kind=4),intent(in):: itrec,file_tmp,nz,nspcc
 real(kind=8),dimension(nz),intent(in)::z,age,pt,rho,dic,dicx,alk,alkx,co3,co3x,pro,o2x,oxco2,anco2,om,up,dwn,cnr,adf
-real(kind=8),dimension(nz),intent(in)::ptx,w,frt,prox,omx,d13c_blk,d18o_blk,d17o_blk,d14c_age,capd47
+real(kind=8),dimension(nz),intent(in)::ptx,w,frt,prox,omx,d13c_blk,d18o_blk,d17o_blk,d14c_age,capd47,time_blk,poro
 real(kind=8),dimension(nz,nspcc),intent(in)::cc,ccx,rcc
 real(kind=8),intent(in)::msed,wi,co3sat,mom,mcc(nspcc),d13c_ocni,d18o_ocni
 character*255,intent(in)::workdir
@@ -1938,13 +2053,13 @@ if (itrec==0) then
 
     open(unit=file_tmp,file=trim(adjustl(workdir))//'sig-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),d13c_ocni,d18o_ocni,0d0,0d0,0d0
+        write(file_tmp,*) z(iz),age(iz),d13c_ocni,d18o_ocni,0d0,0d0,0d0,0d0
     enddo
     close(file_tmp)
 
     open(unit=file_tmp,file=trim(adjustl(workdir))//'bur-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz)
+        write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz),poro(iz)
     enddo
     close(file_tmp)
 else 
@@ -1987,13 +2102,13 @@ else
     open(unit=file_tmp,file=trim(adjustl(workdir))//'sig-'  &
         //trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),d13c_blk(iz),d18o_blk(iz),d17o_blk(iz),d14c_age(iz),capd47(iz)
+        write(file_tmp,*) z(iz),age(iz),d13c_blk(iz),d18o_blk(iz),d17o_blk(iz),d14c_age(iz),capd47(iz),time_blk(iz)
     enddo
     close(file_tmp)
 
     open(unit=file_tmp,file=trim(adjustl(workdir))//'bur-'//trim(adjustl(dumchr(1)))//'.txt' ,action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz)
+        write(file_tmp,*) z(iz),age(iz),w(iz),up(iz),dwn(iz),cnr(iz),adf(iz),poro(iz)
     enddo
     close(file_tmp)
 endif 
@@ -2005,7 +2120,7 @@ endsubroutine recordprofile
 subroutine signal_flx(  &
     d13c_ocn,d18o_ocn,ccflx,d18o_sp,d13c_sp,cntsp  &
     ,time,time_spn,time_trs,time_aft,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,nspcc,ccflxi,it,flxfini,flxfinf  &
-    ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs   &
+    ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs,time_min,time_max   &
     ) 
 implicit none 
 integer(kind=4),intent(in)::nspcc,it,nt_trs
@@ -2015,7 +2130,7 @@ real(kind=8),intent(in)::flxfini,flxfinf
 real(kind=8),intent(out)::d13c_ocn,d18o_ocn,ccflx(nspcc)
 real(kind=8),dimension(nspcc),intent(inout)::d18o_sp,d13c_sp
 real(kind=8) flxfin
-real(kind=8),dimension(nspcc)::flxfrc,flxfrc2 
+real(kind=8),dimension(nspcc)::flxfrc,flxfrc2,flxfrc3 
 integer(kind=4) isp
 ! used only when isotrack is ON
 real(kind=8),intent(in)::capd47_ocni,capd47_ocnf,r14ci,r13c_pdb,r18o_pdb,r17o_pdb,tol
@@ -2026,6 +2141,7 @@ integer(kind=4),allocatable::ipiv(:)
 real(kind=8),allocatable :: amx(:,:),ymx(:),emx(:)
 integer(kind=4) infobls,nmx
 real(kind=8) d2r,r2d
+real(kind=8),intent(in):: time_min, time_max  ! added to calculate flx tracking time 
 
 if (time <= time_spn) then   ! spin-up
     d13c_ocn = d13c_ocni  ! take initial values 
@@ -2072,44 +2188,25 @@ elseif (time>time_spn .and. time<=time_spn+time_trs) then ! during event
         d13c_ocn = 10d0*d13c_ocnf - 9d0*d13c_ocni  - (time-time_spn)*(d13c_ocnf-d13c_ocni)/time_trs*10d0
     endif
 #endif    
-    if (.not.(d13c_ocn>=d13c_ocnf .and.d13c_ocn<=d13c_ocni)) then ! check if calculated d13c and d18o are within the assumed ranges  
-        print*,'error in d13c',d13c_ocn
-        stop
-    endif
+    ! if (.not.(d13c_ocn>=d13c_ocnf .and.d13c_ocn<=d13c_ocni)) then ! check if calculated d13c and d18o are within the assumed ranges  
+        ! print*,'error in d13c',d13c_ocn
+        ! stop
+    ! endif
     ! calculating fractions of flux assigned to individual caco3 species in case of interpolation of 2 signal inputs by 4 species 
     ! NEED to extend to allow tacking of any number of signals 
-    flxfrc(1) = abs(d13c_ocnf-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))
-    flxfrc(2) = abs(d13c_ocni-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))
-    flxfrc(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))
-    flxfrc(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))
-    do 
-        ! case flxfrc2(1)=0
-        flxfrc2=0d0
-        flxfrc2(2) = flxfrc(1)
-        flxfrc2(3) = flxfrc(3)
-        flxfrc2(4) = flxfrc(2)-flxfrc2(3)
-        if (all(flxfrc2>=0d0))exit 
-        flxfrc2=0d0
-        ! case flxfrc2(2)=0
-        flxfrc2(1) = flxfrc(1)
-        flxfrc2(3) = flxfrc(3)-flxfrc2(1)
-        flxfrc2(4) = flxfrc(4)
-        if (all(flxfrc2>=0d0))exit 
-        flxfrc2=0d0
-        ! case flxfrc2(3)=0
-        flxfrc2(1) = flxfrc(3)
-        flxfrc2(2) = flxfrc(1)-flxfrc2(1)
-        flxfrc2(4) = flxfrc(2)
-        if (all(flxfrc2>=0d0))exit 
-        flxfrc2=0d0
-        ! case flxfrc2(4)=0
-        flxfrc2(2) = flxfrc(4)
-        flxfrc2(1) = flxfrc(1)-flxfrc2(2)
-        flxfrc2(3) = flxfrc(2)
-        if (all(flxfrc2>=0d0))exit 
-        print*,'error' ! should not come here 
-        stop
-    enddo 
+    flxfrc(1:2) = abs(d13c_ocnf-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))  ! contribution from d13c_ocni
+    flxfrc(3:4) = abs(d13c_ocni-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))  ! contribution from d13c_ocnf
+    ! flxfrc(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    ! flxfrc(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    flxfrc2=0d0
+    flxfrc2(1) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    flxfrc2(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    flxfrc2(2) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    flxfrc2(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    do isp = 1,4
+        flxfrc2(isp) = flxfrc2(isp)*flxfrc(isp)
+    enddo
+    
 #ifdef track2    
     ! tracking as time goes 
     ! assignment of new caco3 species is conducted so that nspcc species is used up within nt_trs interations
@@ -2243,22 +2340,47 @@ call dgesv(nmx,int(1),amx,nmx,ipiv,ymx,nmx,infobls)
 ! print*,ymx,sum(ymx),infobls
 
 flxfrc2 = 0d0
-flxfrc2 = ymx/ccflxi
+flxfrc2(1:nspcc/2) = ymx/ccflxi
 #ifndef fullclump
-if (abs(sum(flxfrc2)-1d0)>tol) then 
+if (abs(sum(flxfrc2(1:nspcc/2))-1d0)>tol) then 
     print*,'error in flx',flxfrc2
     stop
 endif 
-if (any(flxfrc2<0d0)) then 
+if (any(flxfrc2(1:nspcc/2)<0d0)) then 
     print*,'negative flx',flxfrc2
     stop
 endif 
 #endif
 flxfrc = 0d0
-flxfrc(:) = flxfrc2(:)!/sum(flxfrc2)
+flxfrc(1:nspcc/2) = flxfrc2(1:nspcc/2)!/sum(flxfrc2)
 
 ccflx = 0d0
-ccflx = flxfrc*ccflxi
+ccflx(1:nspcc/2) = flxfrc(1:nspcc/2)*ccflxi
+#endif 
+
+#ifdef timetrack
+
+flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time))  ! contribuion from max age class 
+flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)) ! contribution from min age class 
+
+if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
+    print*,'flx calc in error with including time-tracking pre',sum(ccflx),ccflxi 
+    stop
+endif 
+
+do isp=1+nspcc/2,nspcc
+    ccflx(isp)=flxfrc3(isp)*ccflx(isp-nspcc/2)
+enddo
+
+do isp=1,nspcc/2
+    ccflx(isp)=flxfrc3(isp)*ccflx(isp)
+enddo
+
+if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
+    print*,'flx calc in error with including time-tracking aft',sum(ccflx),ccflxi 
+    stop
+endif 
+
 #endif 
 
 endsubroutine signal_flx
@@ -2301,14 +2423,21 @@ implicit none
 real(kind=8),intent(in)::time,time_spn,time_trs,time_aft
 integer(kind=4),intent(in)::nt_spn,nt_trs,nt_aft
 real(kind=8),intent(out)::dt
+integer(kind=4) fact_slowdown  
+
+#ifdef biotest
+fact_slowdown = 100
+#else 
+fact_slowdown = 3
+#endif 
   
-if (time <= time_spn) then   ! spin-up
-    if (time+dt> time_spn) then
+if (time <= time_spn ) then   ! spin-up
+    if (time+time_trs*fact_slowdown> time_spn) then
         dt=time_trs/real(nt_trs,kind=8) !5000d0   ! when close to 'event', time step needs to get smaller   
     else
         dt = time_spn/real(nt_spn,kind=8)! 800d0 ! otherwise larger time step is better to fasten calculation 
     endif
-elseif (time>time_spn .and. time<=time_spn+time_trs) then ! during event 
+elseif (time>time_spn  .and. time<=time_spn+time_trs) then ! during event 
     dt = time_trs/real(nt_trs,kind=8) !5000d0
 elseif (time>time_spn+time_trs) then 
     dt=time_trs/real(nt_aft,kind=8) !1000d0 ! not too large time step
@@ -4199,43 +4328,46 @@ endsubroutine resdisplay
 subroutine sigrec(  &
     nz,file_sigmly,file_sigmlyd,file_sigbtm,w,time,age,izrec,d13c_blk,d13c_blkc &
     ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,mcc,rho,ptx,msed,izrec2,nspcc  &
-    ,d14c_age,capd47   &  
+    ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo   &  
     )
 implicit none 
 integer(kind=4),intent(in)::nz,file_sigmly,file_sigmlyd,file_sigbtm,izrec,izrec2,nspcc
 real(kind=8),dimension(nz),intent(in)::w,age,d13c_blk,d13c_blkc,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf
-real(kind=8),dimension(nz),intent(in)::rho,ptx
+real(kind=8),dimension(nz),intent(in)::rho,ptx,time_blk,time_blkc,time_blkf,sporo
 real(kind=8),dimension(nz,nspcc),intent(in)::ccx
-real(kind=8),intent(in)::time,mcc(nspcc),msed 
+real(kind=8),intent(in)::time,mcc(nspcc),msed
 !!!!!!
 real(kind=8),intent(in)::d14c_age(nz),capd47(nz)  
 
 #ifndef size 
 if (all(w>=0d0)) then  ! not recording when burial is negative 
-    write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
-        ,sum(ccx(izrec,:)*mcc(:))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
-        ,d14c_age(izrec),capd47(izrec)  
+    write(file_sigmly,*) time-age(izrec), d13c_blk(izrec), d18o_blk(izrec) &
+        ,sum(ccx(izrec,:)*mcc(:))/rho(izrec)*100d0, ptx(izrec)*msed/rho(izrec)*100d0  &
+        ,d14c_age(izrec),capd47(izrec), time_blk(izrec), age(izrec), sporo(izrec),w(izrec),time  
     write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
         ,sum(ccx(izrec2,:)*mcc(:))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
-        ,d14c_age(izrec2),capd47(izrec2)  
+        ,d14c_age(izrec2),capd47(izrec2),time_blk(izrec2),age(izrec2),sporo(izrec2),w(izrec2),time 
     write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
         ,sum(ccx(nz,:)*mcc(:))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0  &
-        ,d14c_age(nz),capd47(nz)  
+        ,d14c_age(nz),capd47(nz),time_blk(nz),age(nz),time,sporo(nz),w(nz),time  
 endif  
 #else 
 if (all(w>=0d0)) then  ! not recording when burial is negative 
     write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
         ,sum(ccx(izrec,:)*mcc(:))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
         ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4)*mcc(1:4))/rho(izrec)*100d0  &
-        ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8)*mcc(5:8))/rho(izrec)*100d0  
+        ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8)*mcc(5:8))/rho(izrec)*100d0  &
+        ,time_blk(izrec),time_blkf(izrec),time_blkc(izrec),age(izrec), sporo(izrec),w(izrec),time
     write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
         ,sum(ccx(izrec2,:)*mcc(:))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
         ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4)*mcc(1:4))/rho(izrec2)*100d0  &
-        ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8)*mcc(5:8))/rho(izrec2)*100d0  
+        ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8)*mcc(5:8))/rho(izrec2)*100d0  &
+        ,time_blk(izrec2),time_blkf(izrec2),time_blkc(izrec2),age(izrec2), sporo(izrec2),w(izrec2),time
     write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
         ,sum(ccx(nz,:)*mcc(:))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 &
         ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4)*mcc(1:4))/rho(nz)*100d0  &
-        ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8)*mcc(5:8))/rho(nz)*100d0  
+        ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8)*mcc(5:8))/rho(nz)*100d0  &
+        ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time
 endif 
 #endif
 

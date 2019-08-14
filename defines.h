@@ -5,16 +5,19 @@
 ! #define biotest
 
 ! testting two size caco3 simulation 
-!#define size 
+! #define size 
 
 ! without signal tracking 
 ! #define sense
 
 ! using method2 to track signals (default 42 species)
-#define track2 
+! #define track2 
+
+! use time for d18O 
+#define timetrack
 
 ! specify the number of caco3 species (if not, nspccinput=4)
-#define nspccinput 22
+! #define nspccinput 22
 
 ! specify the grid number (if not, nzinput=100)
 ! #define nzinput 100
@@ -29,7 +32,7 @@
 ! #define showiter
 
 ! using sparse matrix solve (you need UMFPACK) 
-#define sparse
+! #define sparse
 
 ! all turbo2 mixing 
 ! #define allturbo2 
@@ -50,7 +53,10 @@
 ! #define nodissolve
 
 ! direct isotope tracking 
-! #define isotrack
+#define isotrack
+
+! kinetic isotope effect
+#define kie
 
 ! direct isotope tracking with including 17O 
 ! #define fullclump
