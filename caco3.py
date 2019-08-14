@@ -2387,7 +2387,6 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
             dt = dt_save
             d13c_ocn = 0. 
             d18o_ocn = 0.
-            capd47_ocn = 0.
         d13c_flx = np.sum(d13c_sp[:]*ccflx[:])/ccflxi
         d18o_flx = np.sum(d18o_sp[:]*ccflx[:])/ccflxi
         if not (track2 or isotrack):
@@ -2458,7 +2457,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 o2x = o2calc_ox(  
                     izox,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                     )
-                if showiter: print  'o2 :',itr, o2x[0:nz:np.int32(nz/10)]
+                if showiter: print  'o2 :',itr, o2x[0:nz:nz/10]
                 #  fluxes relevant to o2 (at the same time checking the satisfaction of difference equations) 
                 o2dec,o2dif,o2tflx,o2res = calcflxo2_ox( 
                     nz,sporo,kom_ox,omx,dz,poro,dif_o2,dt,o2,o2x,ox2om,o2i  # input
@@ -2480,7 +2479,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                             o2x = o2calc_ox(  
                                 izox,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                                 )
-                        if showiter: print  'o2 :',iizox, o2x[0:nz:np.int32(nz/10)]
+                        if showiter: print  'o2 :',iizox, o2x[0:nz:nz/10]
                         if (o2x[:]>=0e0).all():
                             if np.abs(o2x[max(iizox-1,0)])<error_o2min: 
                                 error_o2min = np.abs(o2x[max(iizox-1,0)])
@@ -2489,7 +2488,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                         o2x = o2calc_sbox(  
                             iizox_errmin,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                             )
-                        if showiter: print  'o2 :',iizox_errmin, o2x[0:nz:np.int32(nz/10)]
+                        if showiter: print  'o2 :',iizox_errmin, o2x[0:nz:nz/10]
                         o2dec,o2dif,o2tflx,o2res = calcflxo2_sbox( 
                             nz,sporo,kom_ox,omx,dz,poro,dif_o2,dt,o2,o2x,iizox_errmin,ox2om,o2i  # input
                             )
@@ -2497,7 +2496,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                         o2x = o2calc_ox(  
                             izox,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                             )
-                        if showiter: print  'o2 :',iizox_errmin, o2x[0:nz:np.int32(nz/10)]
+                        if showiter: print  'o2 :',iizox_errmin, o2x[0:nz:nz/10]
                         o2dec,o2dif,o2tflx,o2res = calcflxo2_ox( 
                             nz,sporo,kom_ox,omx,dz,poro,dif_o2,dt,o2,o2x,ox2om,o2i  # input
                             )
@@ -2516,7 +2515,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                             o2x = o2calc_sbox(  
                                 izox,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                                 )
-                            if showiter: print  'o2 :',izox, o2x[0:nz:np.int32(nz/10)]
+                            if showiter: print  'o2 :',izox, o2x[0:nz:nz/10]
                             o2dec,o2dif,o2tflx,o2res = calcflxo2_sbox( 
                                 nz,sporo,kom_ox,omx,dz,poro,dif_o2,dt,o2,o2x,izox,ox2om,o2i  # input
                                 )
@@ -2524,7 +2523,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                             o2x = o2calc_ox(  
                                 izox,nz,poro,o2,kom_ox,omx,sporo,dif_o2,dz,dt,o2i,ox2om,o2x # input
                                 )
-                            if showiter: print  'o2 :',izox, o2x[0:nz:np.int32(nz/10)]
+                            if showiter: print  'o2 :',izox, o2x[0:nz:nz/10]
                             o2dec,o2dif,o2tflx,o2res = calcflxo2_ox( 
                                 nz,sporo,kom_ox,omx,dz,poro,dif_o2,dt,o2,o2x,ox2om,o2i  # input
                                 )
