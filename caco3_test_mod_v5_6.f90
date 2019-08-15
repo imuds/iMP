@@ -4352,6 +4352,31 @@ if (all(w>=0d0)) then  ! not recording when burial is negative
         ,d14c_age(nz),capd47(nz),time_blk(nz),age(nz),time,sporo(nz),w(nz),time  
 endif  
 #else 
+#ifdef timetrack
+if (all(w>=0d0)) then  ! not recording when burial is negative 
+    write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
+        ,sum(ccx(izrec,:)*mcc(:))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
+        ,d13c_blkf(izrec),d18o_blkf(izrec) &
+        ,(sum(ccx(izrec,1:4)*mcc(1:4))+sum(ccx(izrec,1+nspcc/2:4+nspcc/2)*mcc(1+nspcc/2:4+nspcc/2)))/rho(izrec)*100d0  &
+        ,d13c_blkc(izrec),d18o_blkc(izrec) &
+        ,(sum(ccx(izrec,5:8)*mcc(5:8))+sum(ccx(izrec,5+nspcc/2:8+nspcc/2)*mcc(5+nspcc/2:8+nspcc/2)))/rho(izrec)*100d0  &
+        ,time_blk(izrec),time_blkf(izrec),time_blkc(izrec),age(izrec), sporo(izrec),w(izrec),time
+    write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
+        ,sum(ccx(izrec2,:)*mcc(:))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
+        ,d13c_blkf(izrec2),d18o_blkf(izrec2)  &
+        ,(sum(ccx(izrec2,1:4)*mcc(1:4))+sum(ccx(izrec2,1+nspcc/2:4+nspcc/2)*mcc(1+nspcc/2:4+nspcc/2)))/rho(izrec2)*100d0  &
+        ,d13c_blkc(izrec2),d18o_blkc(izrec2)  &
+        ,(sum(ccx(izrec2,5:8)*mcc(5:8))+sum(ccx(izrec2,5+nspcc/2:8+nspcc/2)*mcc(5+nspcc/2:8+nspcc/2)))/rho(izrec2)*100d0  &
+        ,time_blk(izrec2),time_blkf(izrec2),time_blkc(izrec2),age(izrec2), sporo(izrec2),w(izrec2),time
+    write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
+        ,sum(ccx(nz,:)*mcc(:))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 &
+        ,d13c_blkf(nz),d18o_blkf(nz)  &
+        ,(sum(ccx(nz,1:4)*mcc(1:4))+sum(ccx(nz,1+nspcc/2:4+nspcc/2)*mcc(1+nspcc/2:4+nspcc/2)))/rho(nz)*100d0  &
+        ,d13c_blkc(nz),d18o_blkc(nz)  &
+        ,(sum(ccx(nz,5:8)*mcc(5:8))+sum(ccx(nz,5+nspcc/2:8+nspcc/2)*mcc(5+nspcc/2:8+nspcc/2)))/rho(nz)*100d0  &
+        ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time
+endif 
+#else 
 if (all(w>=0d0)) then  ! not recording when burial is negative 
     write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
         ,sum(ccx(izrec,:)*mcc(:))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
@@ -4369,6 +4394,7 @@ if (all(w>=0d0)) then  ! not recording when burial is negative
         ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8)*mcc(5:8))/rho(nz)*100d0  &
         ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time
 endif 
+#endif 
 #endif
 
 endsubroutine sigrec
