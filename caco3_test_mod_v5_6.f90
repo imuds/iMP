@@ -382,7 +382,10 @@ call recordtime(  &
 ! rectime(5) = 10000000d0
 
 ! depi = 4d0  ! depth before event 
-depi = 3.5d0  ! depth before event 
+#ifndef depiinput
+#define depiinput 3.5
+#endif 
+depi = depiinput  ! depth before event 
 depf = dep   ! max depth to be changed to  
 
 flxfini = 0.5d0  !  total caco3 rain flux for fine species assumed before event 
@@ -2139,7 +2142,7 @@ real(kind=8) r13c_ocn,r12c_ocn,r14c_ocn,f13c_ocn,f12c_ocn,f14c_ocn
 real(kind=8) r18o_ocn,r16o_ocn,r17o_ocn,f18o_ocn,f16o_ocn,f17o_ocn
 integer(kind=4),allocatable::ipiv(:)
 real(kind=8),allocatable :: amx(:,:),ymx(:),emx(:)
-integer(kind=4) infobls,nmx
+integer(kind=4) infobls,nmx,ifsp
 real(kind=8) d2r,r2d
 real(kind=8),intent(in):: time_min, time_max  ! added to calculate flx tracking time 
 
@@ -2340,22 +2343,27 @@ call dgesv(nmx,int(1),amx,nmx,ipiv,ymx,nmx,infobls)
 ! print*,ymx,sum(ymx),infobls
 
 flxfrc2 = 0d0
-flxfrc2(1:nspcc/2) = ymx/ccflxi
+#ifdef timetrack 
+ifsp = 2
+#else
+ifsp = 1
+#endif 
+flxfrc2(1:nspcc/ifsp) = ymx/ccflxi
 #ifndef fullclump
-if (abs(sum(flxfrc2(1:nspcc/2))-1d0)>tol) then 
+if (abs(sum(flxfrc2(1:nspcc/ifsp))-1d0)>tol) then 
     print*,'error in flx',flxfrc2
     stop
 endif 
-if (any(flxfrc2(1:nspcc/2)<0d0)) then 
+if (any(flxfrc2(1:nspcc/ifsp)<0d0)) then 
     print*,'negative flx',flxfrc2
     stop
 endif 
 #endif
 flxfrc = 0d0
-flxfrc(1:nspcc/2) = flxfrc2(1:nspcc/2)!/sum(flxfrc2)
+flxfrc(1:nspcc/ifsp) = flxfrc2(1:nspcc/ifsp)!/sum(flxfrc2)
 
 ccflx = 0d0
-ccflx(1:nspcc/2) = flxfrc(1:nspcc/2)*ccflxi
+ccflx(1:nspcc/ifsp) = flxfrc(1:nspcc/ifsp)*ccflxi
 #endif 
 
 #ifdef timetrack
@@ -3244,7 +3252,7 @@ do iz = 1,nz
             ! derivative of f(x) for alk at iz wrt isp caco3 conc. at grid iz in ln
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0* (1d0-poro(Iz))*drcc_dcc(iz,isp)  &
-                - sporo(iz)*ddeccc_dcc(iz,isp)    &
+                + sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(iz,isp)*fact
         enddo 
         !  DIC 
@@ -3281,7 +3289,7 @@ do iz = 1,nz
             - poro(iz)*dif_alk(iz)*(alkx(iz)-alki*1d-6/1d3)/dz(iz))/dz(iz) &
             - anco2(iz) &
             - 2d0* (1d0-poro(Iz))*sum(rcc(iz,:))  &
-            - sporo(iz)*sum(deccc(iz,:)) &
+            + sporo(iz)*sum(deccc(iz,:)) &
             )*fact
         ! put derivative of f(x) for alk at iz wrt alk at iz in ln 
         amx(row+nspcc+1,row+nspcc+1) = (& 
@@ -3335,7 +3343,7 @@ do iz = 1,nz
             !ALK 
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0*sporo(Iz)*drcc_dcc(iz,isp)  &
-                - sporo(iz)*ddeccc_dcc(iz,isp)    &
+                + sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(Iz,isp)*fact
         enddo
         ! DIC
@@ -3364,7 +3372,7 @@ do iz = 1,nz
             - (0d0 - 0.5d0*(poro(iz)*dif_alk(iz)+poro(Iz-1)*dif_alk(Iz-1))*(alkx(iz)-alkx(iz-1))/(0.5d0*(dz(iz-1)+dz(iz))))/dz(Iz) &
             - anco2(iz) &
             - 2d0*sporo(Iz)*sum(rcc(iz,:))  &
-            - sporo(iz)*sum(deccc(iz,:)) &
+            + sporo(iz)*sum(deccc(iz,:)) &
             )*fact
         amx(row+nspcc+1,row+nspcc+1) = ( & 
             + poro(iz)*(1d0)/dt &
@@ -3415,7 +3423,7 @@ do iz = 1,nz
             ! ALK 
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0*sporo(Iz)*drcc_dcc(iz,isp)  &
-                - sporo(iz)*ddeccc_dcc(iz,isp)    &
+                + sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(iz,isp)*fact 
         enddo
         ! DIC 
@@ -3451,7 +3459,7 @@ do iz = 1,nz
             - 0.5d0*(poro(Iz)*dif_alk(iz)+poro(iz-1)*dif_alk(iz-1))*(alkx(iz)-alkx(iz-1))/(0.5d0*(dz(iz)+dz(iz-1))))/dz(iz) &
             - anco2(iz) &
             - 2d0*sporo(Iz)*sum(rcc(iz,:))  &
-            - sporo(iz)*sum(deccc(iz,:)) &
+            + sporo(iz)*sum(deccc(iz,:)) &
             ) *fact
         amx(row+nspcc+1,row+nspcc+1) = (& 
             + poro(iz)*(1d0)/dt & 
