@@ -1,6 +1,9 @@
 ! using 'test' directory 
 #define test 
 
+! reading input data
+#define reading 
+
 ! testing 5kyr signal change event 
 ! #define biotest
 
@@ -15,6 +18,9 @@
 
 ! use time for d18O 
 #define timetrack
+
+! specify the background depth (default 3.5 km)
+! #define depiinput 4.0
 
 ! specify the number of caco3 species (if not, nspccinput=4)
 ! #define nspccinput 22
@@ -49,6 +55,15 @@
 ! recording the grid to be used for making transition matrix in LABS 
 !#define recgrid
 
+! specify ref om decomp rate const (default 0.06 [yr-1])
+! #define komi_input 0.06
+
+! specify ref cc dissolution rate const (default 365.25 [yr-1])
+! #define kcci_input 365.25
+
+! if assuming no om decomposition 
+! #define nodecomp
+
 ! if assuming no caco3 dissolution 
 ! #define nodissolve
 
@@ -57,6 +72,9 @@
 
 ! kinetic isotope effect
 #define kie
+
+! isotope tracking also for dic
+! #define aqiso
 
 ! direct isotope tracking with including 17O 
 ! #define fullclump

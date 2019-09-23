@@ -139,6 +139,23 @@ co3=alk/(ph/k2+2d0)
 ! ph=-log10(ph)
 endsubroutine calcspecies
 
+subroutine calcspecies_dicph(dic,ph,tmp,sal,dep,co2,hco3,co3,nz) ! returning the same units as inputs (?)
+implicit none
+integer(kind=4),intent(in) :: nz
+real(kind=8),intent(in)::dic(nz),ph(nz),tmp,sal,dep
+real(kind=8),intent(out)::co2(nz),hco3(nz),co3(nz)
+real(kind=8)::calceq1,calceq2,k1,k2
+
+k1=calceq1(tmp,sal,dep)
+k2=calceq2(tmp,sal,dep)
+co2 = dic/(1d0+k1/ph+k1*k2/ph/ph)
+! hco3=co2*k1/ph
+hco3=dic/(ph/k1+1d0+k2/ph)
+! co3=hco3*k2/ph
+co3=dic/(ph*ph/k1/k2+ph/k2+1d0)
+! ph=-log10(ph)
+endsubroutine calcspecies_dicph
+
 subroutine calcdevs(dic,alk,tmp,sal,dep,nz,info,dco3_dalk,dco3_ddic) ! returning the same units as inputs (?)
 implicit none
 integer(kind=4),intent(in) :: nz
@@ -184,7 +201,12 @@ dco3_ddic = 0d0/(ph/k2+2d0) + alk*(-1d0)/((ph/k2+2d0)**2d0)*(1d0/k2)*dph_ddic
 
 endsubroutine calcdevs
 
-subroutine calcco2chemsp(dicsp,alk,tmp,sal,dep,nz,nspcc,ph,co2,hco3,co3,dco3sp_dalk,dco3sp_ddicsp,info) 
+subroutine calcco2chemsp(  &
+    dicsp,alk,tmp,sal,dep,nz,nspcc,ph,co2  &
+    ,hco3,co3  &
+    ,dco3sp_dalk,dco3sp_ddicsp  &
+    ,info  &
+    )   
 ! co2 species have individual species concentrations
 implicit none
 integer(kind=4),intent(in) :: nz,nspcc
@@ -212,6 +234,7 @@ if (any(ph<0d0)) then
     ! print*,dic
     ! print*,alk
     ! print*,ph
+    ! pause
     ! stop
     info=1
     return

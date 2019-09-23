@@ -36,7 +36,7 @@ parameter(nspcc=nspcc_wot)
 parameter(nspcc=nspcc_wot*2)
 #endif 
 
-real(kind=8),intent(in)::ccflxi,om2cc,depi2,dti2
+real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2
 character*255,intent(in)::filechr,biotmode
 logical,intent(in)::oxonly
 
@@ -78,7 +78,7 @@ real(kind=8) :: k14ci = 1d0/8033d0 ! [yr-1], Aloisi et al. 2004
 real(kind=8) :: r14ci = 1.2d-12 ! c14/c12 in modern, Aloisi et al. 2004, citing Kutschera 2000
 real(kind=8) r2d,d2r
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-real(kind=8) flxfrc(nspcc),flxfrc2(nspcc)  ! flux fractions used for assigning flux values to realized isotope input changes 
+real(kind=8) flxfrc(nspcc),flxfrc2(nspcc),flxfrc3(nspcc)  ! flux fractions used for assigning flux values to realized isotope input changes 
 ! real(kind=8) :: ccflxi = 10d-6 ! mol (CaCO3) cm-2 yr-1  ! a reference caco3 flux; Emerson and Archer (1990) 
 real(kind=8) :: omflx = 12d-6 ! mol cm-2 yr-1       ! a reference om flux; Emerson and Archer (1990)
 real(kind=8) :: detflx = 180d-6 ! g cm-2 yr-1  ! a reference detrital flux; MUDS input http://forecast.uchicago.edu/Projects/muds.html
@@ -205,6 +205,7 @@ integer(kind=4) izml, isp, ilabs, nlabs ! grid # of bottom of mixed layer, # of 
 integer(kind=4) :: file_tmp=100,file_ccflx=101,file_omflx=102,file_o2flx=103,file_dicflx=104,file_alkflx=105,file_ptflx=106  !  file #
 integer(kind=4) :: file_err=107,file_ccflxes(nspcc), file_bound=108, file_totfrac=109, file_sigmly=110,file_sigmlyd=111  ! file #
 integer(kind=4) :: file_sigbtm=112 ! file #
+integer(kind=4) :: file_input=113
 external dgesv  ! subroutine in BALS library 
 logical :: oxic = .true.  ! oxic only model of OM degradation by Emerson (1985) 
 logical :: anoxic = .true.  ! oxic-anoxic model of OM degradation by Archer (1991) 
@@ -232,6 +233,61 @@ labs = .true.
 anoxic = .false. 
 #endif
 
+#ifdef reading 
+open(unit=file_tmp,file='imp_input_text.in',status='old',action='read')
+d13c_ocni = -1d100
+d13c_ocnf = 1d100
+d18o_ocni = -1d100
+d18o_ocnf = 1d100
+capd47_ocni = -1d100
+capd47_ocnf = 1d100
+time_max = -1d100
+time_min = 1d100
+do 
+    read(file_tmp,*,end=999) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+    d13c_ocni = max(d13c_ocni,d13c_ocn)
+    d13c_ocnf = min(d13c_ocnf,d13c_ocn)
+    d18o_ocni = max(d18o_ocni,d18o_ocn)
+    d18o_ocnf = min(d18o_ocnf,d18o_ocn)
+    capd47_ocni = max(capd47_ocni,capd47_ocn)
+    capd47_ocnf = min(capd47_ocnf,capd47_ocn)
+    time_max = max(time_max,time)
+    time_min = min(time_min,time)
+enddo 
+999 print *, time
+if (d13c_ocni == d13c_ocnf) then 
+    d13c_ocni = d13c_ocni + 1d0
+    d13c_ocnf = d13c_ocnf - 1d0
+endif 
+if (d18o_ocni == d18o_ocnf) then 
+    d18o_ocni = d18o_ocni + 1d0
+    d18o_ocnf = d18o_ocnf - 1d0
+endif 
+if (capd47_ocni == capd47_ocnf) then 
+    capd47_ocni = capd47_ocni + 1d0
+    capd47_ocnf = capd47_ocnf - 1d0
+endif 
+if (time_max==time_min) then 
+    time_max = time_max + 1d0
+    time_min=time_min-1d0
+endif 
+! print*,d13c_ocni,d13c_ocnf
+! print*,d18o_ocni,d18o_ocnf
+! print*,time_max,time_min
+! print*, time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,dti
+! print*
+! read(file_tmp,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,dti
+! print*, time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,dti
+close(file_tmp)
+! re-reading initial data except for
+open(unit=file_tmp,file='imp_input_text.in',status='old',action='read')
+read(file_tmp,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+close(file_tmp)
+om2cc = omflx/ccflxi
+dti2 = dti
+depi2 = dep 
+! stop
+#endif 
 print*
 print*,'ccflxi    = ',ccflxi
 print*,'om2cc     = ',om2cc
@@ -308,11 +364,12 @@ call makegrid(beta,nz,ztot,dz,z)
 
 !!!! FUNDAMENTAL PARAMETERS !!!!!!!!!!!!!
 !! assume steady state flux for detrital material 
+#ifndef reading
 call flxstat(  &
     omflx,detflx,ccflx  & ! output
     ,om2cc,ccflxi,mcc,nspcc  & ! input 
     )
-    
+#endif     
     
 !!!!!!!!! specific boundary conditions if needed
 
@@ -370,6 +427,7 @@ call calcupwindscheme(  &
 zox = 10d0 ! priori assumed oxic zone 
 
 !!! ~~~~~~~~~~~~~~ set recording time 
+#ifndef reading
 call recordtime(  &
     rectime,time_spn,time_trs,time_aft,cntrec  &
     ,ztot,wi,file_tmp,workdir,nrec  &
@@ -403,8 +461,34 @@ d18o_ocnf = -1d0 ! ocean d18o value with maximum change
 ! d13c_ocnf = (time_spn+time_trs+time_aft)*(1.01d0) ! ocean d18o value with maximum change 
 time_min = 0d0
 time_max =  (time_spn+time_trs+time_aft)*1.1d0
+#else
+
+
+! do itrec=1,nrec
+    ! rectime(itrec)=itrec*time_max/real(nrec)
+! enddo
+
+open(unit=file_tmp,file='./rectime.in',action='read',status='old')
+do itrec=1,nrec 
+    read(file_tmp,*) rectime(itrec)  ! recording when records are made 
+enddo
+close(file_tmp)
+cntrec = 1  ! rec number (increasing with recording done )
+#ifndef nonrec
+open(unit=file_tmp,file=trim(adjustl(workdir))//'rectime.txt',action='write',status='unknown')
+do itrec=1,nrec 
+    write(file_tmp,*) rectime(itrec)  ! recording when records are made 
+enddo
+close(file_tmp)
+
+
+#endif
+
+#endif 
+
+
 time_sp(1:nspcc/2) = time_max
-time_sp(1+nspcc/2:nspcc) = 0d0
+time_sp(1+nspcc/2:nspcc) = time_min
 ! #endif 
 capd47_ocni = 0.6d0
 capd47_ocnf = 0.5d0
@@ -413,6 +497,8 @@ call sig2sp_pre(  &  ! end-member signal assignment
     d13c_sp,d18o_sp  &
     ,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,nspcc  &
     ) 
+
+
 !! //////////////////////////////////
 !!!~~~~~~~~~~~~~~~~~
 
@@ -420,6 +506,7 @@ call sig2sp_pre(  &  ! end-member signal assignment
 call make_transmx(  &
     trans,izrec,izrec2,izml,nonlocal  & ! output 
     ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
+    ,omflx,depi  & ! input
     )
 
 !~~~~~~~~diffusion & reaction~~~~~~~~~~~~~~~~~~~~~~
@@ -491,8 +578,12 @@ call recordprofile(  &
 warmup_done = .false.
 time = 0d0
 it = 1
-do 
+#ifdef reading
+open(unit=file_input,file='imp_input_text.in',status='old',action='read')
+#endif 
 
+do 
+#ifndef reading 
     !! ///////// isotopes & fluxes settings ////////////// 
 #ifndef sense    
     nt_spn =400
@@ -552,6 +643,92 @@ do
 #else 
     dt = dti
     600 continue 
+#endif 
+
+#elif defined reading 
+    if (warmup_done)then
+        read(file_input,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+        dt = dti
+    ! print*,time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,dti
+    ! print*,d13c_ocnf,d13c_ocni,d13c_ocn
+    elseif (.not.warmup_done) then 
+        time = 0d0
+        if (it<11) then 
+            dt = 1d2
+        elseif (it<111) then
+            dt = 1d3
+        elseif (it<1111) then
+            dt = 1d4
+        elseif (it<11111) then
+            dt = 1d5
+        else 
+            ! print*,'enough warmup iterations to finish up warming up'
+            ! pause
+            warmup_done = .true.
+            it = 1
+            cycle
+        endif 
+    endif 
+    800 continue
+#ifndef isotrack 
+    flxfrc(1:2) = abs(d13c_ocnf-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))  ! contribution from d13c_ocni
+    flxfrc(3:4) = abs(d13c_ocni-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn))  ! contribution from d13c_ocnf
+    ! flxfrc(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    ! flxfrc(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    flxfrc2=0d0
+    flxfrc2(1) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    flxfrc2(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocni
+    flxfrc2(2) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    flxfrc2(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn))  ! contribution from d18o_ocnf
+    ccflx = 0d0
+    do isp = 1,4
+        flxfrc2(isp) = flxfrc2(isp)*flxfrc(isp)
+        ccflx(isp) = ccflxi*flxfrc2(isp)
+    enddo
+    ! print*,ccflx,sum(ccflx)
+    ! print*,flxfrc
+    ! print*,flxfrc2
+    if (abs(ccflxi - sum(ccflx))/ccflxi > tol) then 
+        print*,'error in calculation in flux'
+        stop
+    endif 
+#else 
+    ccflx = 0d0
+    call dic_iso(  &
+        d13c_ocn,d18o_ocn,ccflxi  &
+        ,r14ci,capd47_ocn       &
+        ,r13c_pdb,r18o_pdb,r17o_pdb  &
+        ,5  &
+        ,ccflx(1:5)   & ! output
+        )
+#endif 
+
+#ifdef timetrack
+
+    flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time))  ! contribuion from max age class 
+    flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)) ! contribution from min age class 
+
+    if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
+        print*,'flx calc in error with including time-tracking pre',sum(ccflx),ccflxi 
+        stop
+    endif 
+
+    do isp=1+nspcc/2,nspcc
+        ccflx(isp)=flxfrc3(isp)*ccflx(isp-nspcc/2)
+    enddo
+
+    do isp=1,nspcc/2
+        ccflx(isp)=flxfrc3(isp)*ccflx(isp)
+    enddo
+
+    if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
+        print*,'flx calc in error with including time-tracking aft',sum(ccflx),ccflxi 
+        stop
+    endif 
+
+#endif 
+
+    
 #endif 
 
     !! === temperature & pressure and associated boundary changes ====
@@ -920,6 +1097,8 @@ do
             )
 #ifdef sense
         go to 600
+#elif defined reading  
+        go to 800
 #else 
         go to 700
 #endif 
@@ -993,6 +1172,16 @@ do
     if (err_f < err_fx) err_f_min = err_f  ! recording minimum error 
 #ifdef sense
     if (err_f < tol) exit  ! if total vol. fraction is near enough to 1, steady-state solution is obtained 
+#endif 
+#ifdef reading 
+    if (.not.warmup_done .and. err_f < tol) then 
+        warmup_done = .true. 
+        it = 1
+        time =0d0
+        ! print*,'solid sediment is filled enough with materials so finishing warming up'
+        ! pause
+        cycle
+    endif 
 #endif 
     !! calculation of burial velocity =============================
 
@@ -1197,11 +1386,13 @@ do
 #ifndef nonrec 
     write(file_totfrac,*) time,maxval(abs(frt - 1d0))
     ! recording signals at 3 different depths (btm of mixed layer, 2xdepths of btm of mixed layer and btm depth of calculation domain)
-    call sigrec(  &
-        nz,file_sigmly,file_sigmlyd,file_sigbtm,w,time,age,izrec,d13c_blk,d13c_blkc &
-        ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,mcc,rho,ptx,msed,izrec2,nspcc  & 
-        ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo   &  
-        )
+    if (warmup_done) then 
+        call sigrec(  &
+            nz,file_sigmly,file_sigmlyd,file_sigbtm,w,time,age,izrec,d13c_blk,d13c_blkc &
+            ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,mcc,rho,ptx,msed,izrec2,nspcc  & 
+            ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo   &  
+            )
+    endif 
 #endif 
 
     ! before going to next time step, update variables 
@@ -1236,6 +1427,10 @@ call closefiles(  &
     ,file_bound,file_totfrac,file_sigmly,file_sigmlyd,file_sigbtm,file_ccflxes,nspcc  &
     )
 #endif
+
+#ifdef reading 
+close(file_input)
+#endif 
 
 ! recording end results for lysoclines and caco3 burial fluxes
 call resrec(  &
@@ -1804,10 +1999,11 @@ endsubroutine sig2sp_pre
 subroutine make_transmx(  &
     trans,izrec,izrec2,izml,nonlocal  & ! output 
     ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
+    ,omflx,dep  &  ! input
     )
 implicit none
 integer(kind=4),intent(in)::nspcc,nz,file_tmp
-real(kind=8),intent(in)::dz(nz),sporo(nz),z(nz),zml_ref
+real(kind=8),intent(in)::dz(nz),sporo(nz),z(nz),zml_ref, omflx,dep
 logical,intent(in)::labs(nspcc+2),turbo2(nspcc+2),nobio(nspcc+2)
 real(kind=8),intent(out)::trans(nz,nz,nspcc+2)
 logical,intent(out)::nonlocal(nspcc+2)
@@ -1837,6 +2033,9 @@ if (.true.) then  ! devided by the time duration when transition matrices are cr
 endif
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 zml=zml_ref ! mixed layer depth assumed to be a reference value at first 
+
+!testing depth dependence of zml
+! zml = zml*dep/3.5d0
 
 zrec = 1.1d0*maxval(zml)  ! depth where recording is made, aimed at slightly below the bottom of mixed layer  
 ! zrec = maxval(zml)  ! depth where recording is made, aimed at slightly below the bottom of mixed layer  
@@ -1879,7 +2078,12 @@ do isp=1,nspcc+2
     dbio=0d0
     do iz = 1, nz
         if (z(iz) <=zml(isp)) then
-            dbio(iz) =  0.15d0   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
+            dbio(iz) =  0.15d0   !  within mixed layer 150 cm2/kyr (Emerson, 1985)
+            ! if (z(iz)< 0.1d0) dbio(iz) =  0d0
+            ! dbio(iz) = 0.15d0 + 1d0*exp(-z(iz))
+            ! dbio(iz) = 0.0232d0*(omflx*1d6)**(0.85d0)  ! Eq. (13) of Archer et al. (2002, GBC)
+            ! dbio(iz) = 15.7*(3.3d0*10d0**(-0.87478367 - 0.00043512*dep*1d3))**(0.69d0)  
+            ! ^ Db-w relationship by Eq. (3) of Boudreau (1994) plus w-depth relationship by Middelburg et al. (1997)
             izml = iz   ! determine grid of bottom of mixed layer 
         else
             dbio(iz) =  0d0 ! no biodiffusion in deeper depths 
@@ -1911,6 +2115,19 @@ do isp=1,nspcc+2
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
        transturbo2(iz,iz)=-probh*(izml-1)  
     enddo
+    ! exchange between surface and bottom
+    ! transturbo2 = 0d0
+    ! probh = 0.0010d0
+    ! do iz=1,izml 
+        ! do iiz=1,izml
+            ! if (iiz/=iz) then 
+                ! transturbo2(iiz,iz) = probh*(z(iz)-z(izml)/2d0)**2d0/(z(izml)**2d0/4d0)  &
+                    ! *(z(iiz)-z(izml)/2d0)**2d0/(z(izml)**2d0/4d0)
+                ! transturbo2(iiz,iiz) = transturbo2(iiz,iiz) - transturbo2(iiz,iz)
+            ! endif 
+        ! enddo
+    ! enddo
+    
     ! trying real homogeneous 
     ! transturbo2 = 0d0
     ! probh = 0.0001d0
@@ -1973,8 +2190,12 @@ krad(:,i14c+nspcc/2) = k14ci
 #endif 
 #ifdef kie 
 kcc(:,i13c18o) = kcci*(1d0-5d-5) 
+! assuming also for 14c
+! kcc(:,i14c) = kcci*(1d0+5d-2) 
 #ifdef timetrack 
 kcc(:,i13c18o+nspcc/2) = kcci*(1d0-5d-5) 
+! assuming also for 14c
+! kcc(:,i14c+nspcc/2) = kcci*(1d0+5d-2) 
 #endif 
 #endif 
 #endif 
@@ -2158,6 +2379,10 @@ if (time <= time_spn) then   ! spin-up
     d13c_sp(cntsp)=d13c_ocn
     ccflx = 0d0
     ccflx(cntsp) = ccflxi
+#ifdef timetrack 
+    d18o_sp(cntsp+nspcc/2)=d18o_ocn
+    d13c_sp(cntsp+nspcc/2)=d13c_ocn
+#endif 
 #endif 
 #ifdef size 
     ccflx = 0d0
@@ -2239,6 +2464,10 @@ elseif (time>time_spn .and. time<=time_spn+time_trs) then ! during event
             ccflx(cntsp) = ccflxi
         endif 
     endif 
+#ifdef timetrack 
+    d18o_sp(cntsp+nspcc/2)=d18o_ocn
+    d13c_sp(cntsp+nspcc/2)=d13c_ocn
+#endif 
 #else 
     ! usually using 4 species interpolation for 2 signals 
     ! NEED to be extended so that any number of signals can be tracked with corresponding minimum numbers of caco3 species 
@@ -2269,6 +2498,10 @@ elseif (time>time_spn+time_trs) then
     endif 
     d18o_sp(cntsp+1)=d18o_ocn
     d13c_sp(cntsp+1)=d13c_ocn
+#ifdef timetrack 
+    d18o_sp(cntsp+1+nspcc/2)=d18o_ocn
+    d13c_sp(cntsp+1+nspcc/2)=d13c_ocn
+#endif 
     ccflx = 0d0
     ccflx(cntsp+1) = ccflxi
 #endif 
@@ -2392,6 +2625,96 @@ endif
 #endif 
 
 endsubroutine signal_flx
+!**************************************************************************************************************************************
+
+!**************************************************************************************************************************************
+subroutine dic_iso(  &
+    d13c_ocn,d18o_ocn,dici  &
+    ,r14ci,capd47_ocn       &
+    ,r13c_pdb,r18o_pdb,r17o_pdb  &
+    ,nspcc  &
+    ,dic   & ! output
+    ) 
+! DIC isotopologues calculation  
+implicit none 
+integer(kind=4),intent(in)::nspcc
+real(kind=8),intent(in)::d13c_ocn,d18o_ocn
+real(kind=8),intent(out)::dic(nspcc)
+! used only when isotrack is ON
+real(kind=8),intent(in)::r14ci,r13c_pdb,r18o_pdb,r17o_pdb,dici
+real(kind=8),intent(in)::capd47_ocn
+real(kind=8) r13c_ocn,r12c_ocn,r14c_ocn,f13c_ocn,f12c_ocn,f14c_ocn
+real(kind=8) r18o_ocn,r16o_ocn,r17o_ocn,f18o_ocn,f16o_ocn,f17o_ocn
+integer(kind=4),allocatable::ipiv(:)
+real(kind=8),allocatable :: amx(:,:),ymx(:)
+integer(kind=4) infobls,nmx
+real(kind=8) d2r,r2d
+real(kind=8) :: tol=1d-12
+
+
+! only when directly tracking isotopes 
+r13c_ocn = d2r(d13c_ocn,r13c_pdb) 
+r12c_ocn = 1d0
+r14c_ocn = r14ci 
+f12c_ocn = r12c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+f13c_ocn = r13c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+f14c_ocn = r14c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+r18o_ocn = d2r(d18o_ocn,r18o_pdb)
+r16o_ocn = 1d0
+r17o_ocn = ((17d0-16d0)/(18d0-16d0)*18d0*16d0/(17d0*16d0)*(r18o_ocn/r18o_pdb-1d0)+1d0)*r17o_pdb
+#ifndef fullclump
+r17o_ocn = 0d0  ! when not considering 17o
+#endif 
+f16o_ocn = r16o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+f17o_ocn = r17o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+f18o_ocn = r18o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+
+! 4 species 
+
+nmx = 5 !  
+if (allocated(amx)) deallocate(amx)
+if (allocated(ymx)) deallocate(ymx)
+if (allocated(ipiv)) deallocate(ipiv)
+allocate(amx(nmx,nmx),ymx(nmx),ipiv(nmx))
+
+amx = 0d0
+ymx = 0d0
+
+amx(1,1)=1d0
+amx(1,2)=1d0
+ymx(1)=f12c_ocn*dici 
+
+amx(2,3)=1d0
+amx(2,4)=1d0
+ymx(2)=f13c_ocn*dici 
+
+amx(3,1)=3d0
+amx(3,2)=2d0
+amx(3,3)=3d0
+amx(3,4)=2d0
+amx(3,5)=3d0*f16o_ocn
+ymx(3)=3d0*f16o_ocn*dici
+
+amx(4,4)=1d0
+amx(4,1)=-1d0*r13c_ocn*r18o_ocn*(capd47_ocn*1d-3+1d0)
+
+amx(5,5)=1d0
+ymx(5)=f14c_ocn*dici
+
+call dgesv(nmx,int(1),amx,nmx,ipiv,ymx,nmx,infobls) 
+
+! print*,ymx,sum(ymx),infobls
+
+dic(1:nspcc) = ymx
+
+if (abs((sum(dic(1:nspcc))-dici)/dici)>tol) then 
+    print*,'error in assignment of dic'
+    print*,dic(1:nspcc)
+    print*,sum(dic(1:nspcc)),dici
+    stop 
+endif 
+ 
+endsubroutine dic_iso
 !**************************************************************************************************************************************
 
 !**************************************************************************************************************************************
@@ -3252,7 +3575,7 @@ do iz = 1,nz
             ! derivative of f(x) for alk at iz wrt isp caco3 conc. at grid iz in ln
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0* (1d0-poro(Iz))*drcc_dcc(iz,isp)  &
-                + sporo(iz)*ddeccc_dcc(iz,isp)    &
+                - sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(iz,isp)*fact
         enddo 
         !  DIC 
@@ -3343,7 +3666,7 @@ do iz = 1,nz
             !ALK 
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0*sporo(Iz)*drcc_dcc(iz,isp)  &
-                + sporo(iz)*ddeccc_dcc(iz,isp)    &
+                - sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(Iz,isp)*fact
         enddo
         ! DIC
@@ -3423,7 +3746,7 @@ do iz = 1,nz
             ! ALK 
             amx(row+nspcc+1,row+isp-1) = (&
                 - 2d0*sporo(Iz)*drcc_dcc(iz,isp)  &
-                + sporo(iz)*ddeccc_dcc(iz,isp)    &
+                - sporo(iz)*ddeccc_dcc(iz,isp)    &
                 )*ccx(iz,isp)*fact 
         enddo
         ! DIC 
@@ -3511,7 +3834,7 @@ if (any(isnan(ymx))) then
         write (file_tmp,*) ymx(iz)
     enddo
     close(file_tmp)
-    ! stop
+    stop
     flg_500 = .true.
     exit 
 endif
@@ -3648,6 +3971,27 @@ loc_error = maxval(exp(abs(ymx))) - 1d0
 itr = itr + 1
 #ifdef showiter
 print*,'co2 iteration',itr,loc_error,infobls
+print'(A,5E11.3)', 'cc :',(sum(ccx(iz,:)),iz=1,nz,nz/5)
+print'(A,5E11.3)', 'dic:',(dicx(iz)*1d3,iz=1,nz,nz/5)
+print'(A,5E11.3)', 'alk:',(alkx(iz)*1d3,iz=1,nz,nz/5)
+print'(A,5E11.3)', 'rxn:',(sum(rcc(iz,:)),iz=1,nz,nz/5)
+print'(A,5E11.3)', 'ph :',(-log10(prox(iz)),iz=1,nz,nz/5)
+print*, '   ..... multiple cc species ..... '
+do isp=1,nspcc 
+    print'(i0.3,":",5E11.3)',isp,(ccx(iz,isp),iz=1,nz,nz/5)
+enddo
+! if (nspdic/=1) then 
+    ! print*, '   ..... multiple dic species ..... '
+    ! do isp=1,nspdic 
+        ! print'(i0.3,":",5E11.3)',isp,(dicx(iz,isp)*1d3,iz=1,nz,nz/5)
+    ! enddo
+! endif 
+! if (nspdic/=1) then 
+    print*, '   ..... multiple rxns ..... '
+    do isp=1,nspcc
+        print'(i0.3,":",5E11.3)',isp,(rcc(iz,isp),iz=1,nz,nz/5)
+    enddo
+! endif 
 #endif
 
 !  if negative or NAN calculation stops 
@@ -3779,7 +4123,7 @@ do iz = 1,nz
             - poro(iz)*dif_alk(iz)*(alkx(iz)-alki*1d-6/1d3)/dz(iz))/dz(iz)*dz(iz)
         alkdec = alkdec - anco2(iz)*dz(iz) 
         alkdis = alkdis - 2d0* sporo(Iz)*sum(rcc(iz,:))*dz(iz) 
-        alkrad = alkrad - sporo(iz)*sum(deccc(iz,:))*dz(iz)
+        alkrad = alkrad + sporo(iz)*sum(deccc(iz,:))*dz(iz)
     else if (iz == nz) then 
         do isp=1,nspcc
             cctflx(isp) = cctflx(isp) + sporo(iz)*(ccx(iz,isp)-cc(iz,isp))/dt *dz(iz)
@@ -3803,7 +4147,7 @@ do iz = 1,nz
             - 0.5d0*(poro(iz)*dif_alk(iz)+poro(iz-1)*dif_alk(Iz-1))*(alkx(iz)-alkx(iz-1))/(0.5d0*(dz(iz-1)+dz(iz))))/dz(iz)*dz(iz)
         alkdec = alkdec - anco2(iz)*dz(iz)
         alkdis = alkdis - 2d0* Sporo(Iz)*sum(rcc(iz,:))*dz(iz)
-        alkrad = alkrad - sporo(iz)*sum(deccc(iz,:))*dz(iz)
+        alkrad = alkrad + sporo(iz)*sum(deccc(iz,:))*dz(iz)
     else 
         do isp=1,nspcc
             cctflx(isp) = cctflx(isp) + sporo(iz)*(ccx(iz,isp)-cc(iz,isp))/dt *dz(iz)
@@ -3827,7 +4171,7 @@ do iz = 1,nz
             - 0.5d0*(poro(iz)*dif_alk(iz)+poro(iz-1)*dif_alk(iz-1))*(alkx(iz)-alkx(iz-1))/(0.5d0*(dz(iz)+dz(iz-1))))/dz(iz)*dz(iz)
         alkdec = alkdec - anco2(iz)*dz(iz)
         alkdis = alkdis - 2d0* sporo(iz)*sum(rcc(iz,:))*dz(iz) 
-        alkrad = alkrad - sporo(iz)*sum(deccc(iz,:))*dz(iz)
+        alkrad = alkrad + sporo(iz)*sum(deccc(iz,:))*dz(iz)
     endif
     do isp=1,nspcc
         if (labs(isp+2).or. turbo2(isp+2)) then 
