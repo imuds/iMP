@@ -244,7 +244,7 @@ capd47_ocnf = 1d100
 time_max = -1d100
 time_min = 1d100
 do 
-    read(file_tmp,*,end=999) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+    read(file_tmp,*,end=999) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,dti
     d13c_ocni = max(d13c_ocni,d13c_ocn)
     d13c_ocnf = min(d13c_ocnf,d13c_ocn)
     d18o_ocni = max(d18o_ocni,d18o_ocn)
@@ -281,7 +281,7 @@ endif
 close(file_tmp)
 ! re-reading initial data except for
 open(unit=file_tmp,file='../input/imp_input.in',status='old',action='read')
-read(file_tmp,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+read(file_tmp,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,dti
 close(file_tmp)
 om2cc = omflx/ccflxi
 dti2 = dti
@@ -647,7 +647,7 @@ do
 
 #elif defined reading 
     if (warmup_done)then
-        read(file_input,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
+        read(file_input,*) time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,dti
         dt = dti
     ! print*,time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,dti
     ! print*,d13c_ocnf,d13c_ocni,d13c_ocn
@@ -697,6 +697,16 @@ do
         print*,'error in calculation in flux'
         stop
     endif 
+
+#ifdef size 
+    do isp = 5,8
+        ccflx(isp) = ccflx(isp-4)*(1d0-flxfin)
+    enddo
+    do isp = 1,4
+        ccflx(isp) = ccflx(isp)*flxfin
+    enddo
+#endif 
+
 #else 
     ccflx = 0d0
     call dic_iso(  &
