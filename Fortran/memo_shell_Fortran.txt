@@ -1,0 +1,11 @@
+Memo to use shell script to run parallel sensitivity runs 
+
+0. Switch on 'sense' macro in /input/defines.h file and others off.
+    (You must keep mocsy switches on if you want to use mocsy; see memo_mocsy_Fortran.txt)
+1. Compile Fortran codes with specifying execution file name 'sense':
+    Just add '-o sense' when you compile the codes.
+        E.g.,) 'gfortran -o sense caco3_fortran.f90 caco3_test_mod_v5_6.o caco3_therm.o -lopenblas -g -fcheck=all'
+2. Specify the number of parallel runs in caco3_shell.py (change the parameter called 'process' in Line 3).
+3. Run caco3_shell.py. There should appear pruns.sh file and files prun_xx.sh files where xx's are the number of parallel runs.
+4. Type './pruns.sh'. If you are said 'you do not have permission' or something like this, then 
+    type 'chmod u+x pruns.sh' and then './pruns.sh'. 
