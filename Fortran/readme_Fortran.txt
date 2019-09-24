@@ -27,7 +27,7 @@ See https://github.com/PetterS/SuiteSparse/tree/master/UMFPACK for
 -------------------- * -------- * -------------------- 
 
 Simulation can be run by following steps:
-(0) Modify input/defines.h file depending on the simulation you want 
+(0) Modify /input/defines.h file depending on the simulation you want 
 (1) Compile: 
         a) gfortran -c caco3_therm.f90
         b) gfortran -c -cpp -I/path/to/iMP/input caco3_test_mod_v5_6.f90
@@ -45,7 +45,7 @@ Simulation can be run by following steps:
         Z is the file name you would like to give to result directory
             E.g.) Typing './a.exe biot fickian ox false fl test_simu' will simulate 
                 CaCO3 multip particle diagenesis with Fickian mixing and oxic+anoxic OM degradation 
-                saving results in output/profiles/oxanox/test_simu directory 
+                saving results in /output/profiles/multiple/oxanox/test_simu directory 
     [if you choose not to use input file to give boundary conditions in defines.h]
     Type './a.exe cc A rr B dep C dt D biot X ox Y fl Z'
         where 
@@ -57,16 +57,16 @@ Simulation can be run by following steps:
                 CaCO3 multiple particle diagenesis with Fickian mixing and oxic+anoxic OM degradation 
                 assuming 12 umol cm2 yr-1 CaCO3 rain flux with 0.7 OM/CaCO3 rain flux ratio
                 and water depth change to 4.5 km during signal change event 
-                saving results in output/profiles/oxanox/test_simu directory 
+                saving results in /output/profiles/multiple/oxanox/test_simu directory 
 (3) Plot results        
-    (a-1) Time evolution of signals and solid and aqueous phases are stored in a directory within output/profiles/ directory. 
+    (a-1) Time evolution of signals and solid and aqueous phases are stored in a directory within /output/profiles/ directory. 
         There, the directory name changes with OM degradation scheme and bioturbation mode as well as the file name you specified (Z in above)
             E.g.) when you run a simulation by typing './a.exe biot turbo2 ox true fl demo' then 
-                the directory is 'output/profiles/ox_turbo2/demo'. 
+                the directory is '/output/profiles/ox_turbo2/demo'. 
     (a-2) You can use python script to plot results. 
         E.g.) You can plot evolutions of signals using caco3_signals.py. There you must change the name of result directory to read data correctly. 
 
-    (b-1) Steady-state or final state of CaCO3 concentration and burial flux are stored in a directory within output/res/ directory.
+    (b-1) Steady-state or final state of CaCO3 concentration and burial flux are stored in a directory within /output/res/multiple/ directory.
         There again the directory name changes with OM degradation scheme and bioturbation mode. See (a-1) above. 
-    (b-2) You can use python script (e.g., plot/caco3_lys_oxanox_sum.py) to plot results. 
+    (b-2) You can use python script (e.g., /plot/caco3_lys.py) to plot results. 
         

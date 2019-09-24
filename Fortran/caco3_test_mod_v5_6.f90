@@ -288,6 +288,7 @@ dti2 = dti
 depi2 = dep 
 ! stop
 #endif 
+#ifndef sense 
 print*
 print*,'ccflxi    = ',ccflxi
 print*,'om2cc     = ',om2cc
@@ -329,6 +330,8 @@ select case(trim(adjustl(biotmode)))
         print*,'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
         print*
 endselect 
+
+#endif 
 
 if (oxonly) anoxic = .false. 
 
