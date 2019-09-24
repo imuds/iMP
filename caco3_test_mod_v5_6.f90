@@ -661,6 +661,11 @@ do
             dt = 1d4
         elseif (it<11111) then
             dt = 1d5
+            if (trim(adjustl(biotmode))=='labs') then 
+                it=1
+                warmup_done = .true.
+                cycle
+            endif 
         else 
             ! print*,'enough warmup iterations to finish up warming up'
             ! pause

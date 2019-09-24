@@ -65,13 +65,13 @@
 ! #define nodecomp
 
 ! if assuming no caco3 dissolution 
-! #define nodissolve
+#define nodissolve
 
 ! direct isotope tracking 
-#define isotrack
+! #define isotrack
 
 ! kinetic isotope effect
-#define kie
+! #define kie
 
 ! isotope tracking also for dic
 ! #define aqiso
