@@ -4,7 +4,7 @@ Memo for IMP Python ver.
     a) numpy 
     b) scipy [optional, if you choose to use sparse matrix solver (asked when running)] 
     c) mocsy [optional, if you choose to use mocsy as co2 cheimistry calculation method (asked when running)] 
-        (See readme_Python_mocsy.txt for installation of mocsy.) 
+        (See memo_mocsy_Python.txt for installation of mocsy.) 
 2. Main code (caco3.py) is written in Python 2.7. 
     You can use Python 3.x by converting the code via 2to3 (typing '2to3 caco3.py -w').
 3. Run the source code caco3.py (e.g., type 'python caco3.py'):
@@ -22,6 +22,8 @@ Memo for IMP Python ver.
        sense for simulation mode
     *** NOTE: with a larger time step, simulation reaches a steady state sooner,
            but with a higher probability to face difficulty in convergence ***
+    *** NOTE: you can use caco3_sense.py for running in series 
+        for ranges of boundary conditions (water depth and rain flux and ratios) ***
         
     Results in Section 3.2.1 can be obtained by entering:
        co2 for co2 chemistry calculation method 
@@ -67,7 +69,7 @@ Memo for IMP Python ver.
        False for oxic only for OM degradation
        diss. exp. for simulation mode
     *** NOTE: it will take a very long time 
-          as such consistency with Fortran90 ver. has not been checked ***
+          as such consistency with Fortran ver. has not been checked ***
        
     Results in Section 3.3.2 can be obtained by entering:
        co2 for co2 chemistry calculation method 
