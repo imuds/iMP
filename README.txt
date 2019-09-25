@@ -9,12 +9,12 @@ General features:
     Solid phase   : multiple CaCO3 classes, OM and clay 
     Aqueous phase : DIC, ALK and O2 
     For bioturbation, 4 options exist:
-        Fickian-, homogeneous-, LABS- or no-mixing
+        Fickian-, homogeneous-, LABS*- or no-mixing
     For OM degradation, one can take 2 extreme scenarios:
         oxic-only or oxic-anoxic (as in Archer, 1991) 
 (2) Proxy signal tracking:
-    A. Time-stepping method (Fortran, Python*, MATLAB*)
-    B. Interpolating method** (Fortran, Python, MATLAB)
+    A. Time-stepping method (Fortran, Python**, MATLAB**)
+    B. Interpolating method*** (Fortran, Python, MATLAB)
     C. Direct method (Fortran, Python) 
 (3) Tracked proxies:
     d13C, d18O, sizes and time (time-tracking is explicitly implemented only in Fortran, currently)
@@ -22,16 +22,16 @@ General features:
     Currently only Fortran ver. allows reading input files 
         for boundary and proxy changes.  
     Other codes calculate boundary and proxy changes within their own codes ... (to be updated to allow flexible input) 
-     
-*  : Taking too much time so coded but not yet run to complete a simulation ...  
-** : Default method; fast and flexible 
+
+*   : Mixing caused by benthic automata created by LABS model (Choi et al., 2002). 
+**  : Taking too much time so coded but not yet run to complete a simulation ...  
+*** : Default method; fast and flexible. 
  
 General model switches: 
-    Regarding the above features (1)-(4), 
-    switches exist to allow changes regarding (1)-(4)
-        (reaction/transport, signal tracking method, tracked proxyes and how to force boundary and proxy changes). 
+    Switches exist to allow changes regarding (1)-(4)
+        (reaction/transport, signal tracking method, tracked proxies and how to force boundary and proxy changes). 
     Fortran switches are defined in /input/defines.h file. 
-    Other codes have their own switches within codes. Python asks about switches when when users run it.
+    Other codes have their own switches within codes. Python asks about switches when users run it.
     See individual readme.txt for more details.
 
 Input to the model:
@@ -46,14 +46,15 @@ Input to the model:
         (and you must switch on 'reading' in defines.h file; see readme for Fortran for more details). 
         
 Output of the model:
-    Main output files can be categolized into 4 types:
+    Main output files can be categorized into 4 types:
         (1) flux time records (Fortran, Python) 
             Format is ...flx.txt. E.g., OM fluxes are recorded in omflx.txt files. 
             Flux files include:
                 Time, time-change-flux, diffusive flux, advective flux, 
-                fluxes related to OM degradation, CaCO3 dissoluton and radio-decay, and 
+                fluxes related to OM degradation, CaCO3 dissolution and radio-decay, and 
                 residual flux of all the above. 
-            Note that residual flux must be close to zero for mass balance and one can check mass balance by looking at residual fluxes. 
+            Note that residual flux must be close to zero for mass balance and 
+                one can check the mass balance by looking at residual fluxes. 
         (2) Depth profiles of solid and aqueous phases and proxy signals (Fortran, Python, MATLAB)
             Format is, e.g., omx-015.txt. 
                 In this example, 'omx' indicates OM profies and 
@@ -67,5 +68,6 @@ Output of the model:
         (4) CaCO3 wt% and burial flux at end of each simulation as function of saturation state
             These results are used to plot lysocline and CaCO3 burial flux. 
         
-        /plot directory contains python scripts plotting the above output.
+        The above output is stored in /output directory. 
+        And output can be plotted with python scripts in /plot directory.
         Readme therein gives more details. 
