@@ -17,8 +17,8 @@ General features:
     B. Interpolating method*** (Fortran, Python, MATLAB)
     C. Direct method (Fortran, Python) 
 (3) Tracked proxies:
-    d13C, d18O, 14C, D47, sizes and time 
-        Note that 14C and D47 are tracked only via direct method (thus limited to Fortran and Python) 
+    d13C, d18O, 14C-age, D47, sizes and time 
+        Note that 14C-age and D47 are tracked only via direct method (thus limited to Fortran and Python) 
             and time-tracking is explicitly implemented only in Fortran, currently. 
 (4) Flexibility in proxy and boundary changes: 
     Currently only Fortran ver. allows reading input files 
