@@ -138,7 +138,7 @@ EXAMPLES
             you need to repeat c, run the code, with assuming different bioturbation mode. 
             (changing X in (2) above)
             
-6. Two size fractions (Section 4.2)
+6. Direct-tracking method (Section 4.2)
     a. Switch on 'reading', 'timetrack' and 'isotrack' in defines.h 
     b. Use rectime_EXAMPLE-ISO.in and imp_input_EXAMPLE-ISO.in. 
         I.e., type the following: 
@@ -153,22 +153,7 @@ EXAMPLES
         *** Note also that if you want to test kinetic isotope effect, 
             you need to switch on 'kie' in /input/defines.h and repeat the above procedure. 
 
-7. Two size fractions (Section 4.2)
-    a. Switch on 'reading', 'timetrack' and 'isotrack' in defines.h 
-    b. Use rectime_EXAMPLE-ISO.in and imp_input_EXAMPLE-ISO.in. 
-        I.e., type the following: 
-        'cd ../input' 
-        'cp EXAMPLES/rectime_EXAMPLE-ISO.in reactime.in'
-        'cp EXAMPLES/imp_input_EXAMPLE-ISO.in imp_input.in'
-    c. Complile and run the code. (see above)
-    d. You can plot signals with /plot/caco3_signals.py. 
-        *** Note that if you want to compare different bioturbation effect, 
-            you need to repeat c, run the code, with assuming different bioturbation mode. 
-            (changing X in (2) above)
-        *** Note also that if you want to test kinetic isotope effect, 
-            you need to switch on 'kie' in /input/defines.h and repeat the above procedure. 
-
-8. Lysocline with using mocsy (Section 4.3)
+7. Lysocline with using mocsy (Section 4.3)
     a. Switch on 'sense', 'mocsy' and 'USE_PRECISION=2' in defines.h 
     b. Complile the code with specifying execution file name as 'sense' and using mocsy.
         (See memo_mocsy_Fortran.txt for details on how to use mocsy.)
