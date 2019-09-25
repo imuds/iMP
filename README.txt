@@ -1,10 +1,9 @@
-IMP 
-(Implicit model of Multiple Particles diagenesis for proxy signal tracking)
+IMP [Implicit model of Multiple Particles diagenesis for proxy signal tracking]
 
-3 standalone codes are available: Fortran, Python and MATLAB.
-Details of how to run the codes; see readmes in individual directories. 
+3 versions of codes are available: Fortran, Python and MATLAB vers.
+For details of how to run the codes, see readmes in individual directories. 
 
-General features:
+<<< General features >>>
 (1) Reactive transport: 
     Solid phase   : multiple CaCO3 classes, OM and clay 
     Aqueous phase : DIC, ALK and O2 
@@ -29,14 +28,14 @@ General features:
 **  : Taking too much time so coded but not yet run to complete a simulation ...  
 *** : Default method; fast and flexible. 
  
-General model switches: 
+<<< General model switches >>> 
     Switches exist to allow changes regarding (1)-(4)
         (reaction/transport, signal tracking method, tracked proxies and how to force boundary and proxy changes). 
     Fortran switches are defined in /input/defines.h file. 
     Other codes have their own switches within codes. Python asks about switches when users run it.
     See individual readme.txt for more details.
 
-Input to the model:
+<<< Input to the model >>>
     /input directory contains defines.h, a switch file for Fortran code. 
     This directory also need contain time evolutions of boundary and proxy values (imp_input.in) 
         as well as time shedule of sediment profile recording (rectime.in) 
@@ -47,7 +46,7 @@ Input to the model:
     Note that these input files can be used only for Fortran ver., currently 
         (and you must switch on 'reading' in defines.h file; see readme for Fortran for more details). 
         
-Output of the model:
+<<< Output of the model >>>
     Main output files can be categorized into 4 types:
         (1) flux time records (Fortran, Python) 
             Format is ...flx.txt. E.g., OM fluxes are recorded in omflx.txt files. 
