@@ -1,10 +1,10 @@
-# IMP 
-###### **I**mplicit model of **M**ultiple **P**articles diagenesis for proxy signal tracking
+IMP 
+(Implicit model of Multiple Particles diagenesis for proxy signal tracking)
 
-## 3 standalone codes are available: Fortran, Python and MATLAB.
-## Details of how to run the codes; see readmes in individual directories. 
+3 standalone codes are available: Fortran, Python and MATLAB.
+Details of how to run the codes; see readmes in individual directories. 
 
-## General features:
+General features:
 (1) Reactive transport: 
     Solid phase   : multiple CaCO3 classes, OM and clay 
     Aqueous phase : DIC, ALK and O2 
@@ -13,8 +13,8 @@
     For OM degradation, one can take 2 extreme scenarios:
         oxic-only or oxic-anoxic (as in Archer, 1991) 
 (2) Proxy signal tracking:
-    A. Time-stepping method (Fortran, Python\[^1], MATLAB\[^1])
-    B. Interpolating method\[^2] (Fortran, Python, MATLAB)
+    A. Time-stepping method (Fortran, Python*, MATLAB*)
+    B. Interpolating method** (Fortran, Python, MATLAB)
     C. Direct method (Fortran, Python) 
 (3) Tracked proxies:
     d13C, d18O, sizes and time (time-tracking is explicitly implemented only in Fortran, currently)
@@ -23,10 +23,10 @@
         for boundary and proxy changes.  
     Other codes calculate boundary and proxy changes within their own codes ... (to be updated to allow flexible input) 
      
-\[^1]: taking too much time so coded but not yet run to complete a simulation ...  
-\[^2]: Default method; fast and flexible 
+*  : Taking too much time so coded but not yet run to complete a simulation ...  
+** : Default method; fast and flexible 
  
-## General model switches: 
+General model switches: 
     Regarding the above features (1)-(4), 
     switches exist to allow changes regarding (1)-(4)
         (reaction/transport, signal tracking method, tracked proxyes and how to force boundary and proxy changes). 
@@ -34,18 +34,18 @@
     Other codes have their own switches within codes. Python asks about switches when when users run it.
     See individual readme.txt for more details.
 
-## Input to the model:
+Input to the model:
     /input directory contains defines.h, a switch file for Fortran code. 
     This directory also need contain time evolutions of boundary and proxy values (imp_input.in) 
         as well as time shedule of sediment profile recording (rectime.in) 
         when Fortran ver. is run with using input files for boundary and proxy changes. 
     Subdirectory /input/EXAMPLES contain those files (imp_input.in and rectime.in) used in simulations shown in manuscript. 
     Users can rename and move EXAMPLE files to /input 
-        **or** create their own input files of boundaries and proxies by using python script make_input.py. 
+        OR create their own input files of boundaries and proxies by using python script make_input.py. 
     Note that these input files can be used only for Fortran ver., currently 
         (and you must switch on 'reading' in defines.h file; see readme for Fortran for more details). 
         
-## Output of the model:
+Output of the model:
     Main output files can be categolized into 4 types:
         (1) flux time records (Fortran, Python) 
             Format is ...flx.txt. E.g., OM fluxes are recorded in omflx.txt files. 
