@@ -45,7 +45,7 @@ Simulation can be run by following steps:
         Z is the file name you would like to give to result directory
             E.g.) Typing './a.exe biot fickian ox false fl test_simu' will simulate 
                 CaCO3 multip particle diagenesis with Fickian mixing and oxic+anoxic OM degradation 
-                saving results in /output/profiles/multiple/oxanox/test_simu directory 
+                saving results in /output/profiles/multi/oxanox/test_simu directory 
     [if you choose not to use input file to give boundary conditions in defines.h]
     Type './a.exe cc A rr B dep C dt D biot X ox Y fl Z'
         where 
@@ -57,7 +57,7 @@ Simulation can be run by following steps:
                 CaCO3 multiple particle diagenesis with Fickian mixing and oxic+anoxic OM degradation 
                 assuming 12 umol cm2 yr-1 CaCO3 rain flux with 0.7 OM/CaCO3 rain flux ratio
                 and water depth change to 4.5 km during signal change event 
-                saving results in /output/profiles/multiple/oxanox/test_simu directory 
+                saving results in /output/profiles/multi/oxanox/test_simu directory 
 (3) Plot results        
     (a-1) Time evolution of signals and solid and aqueous phases are stored in a directory within /output/profiles/ directory. 
         There, the directory name changes with OM degradation scheme and bioturbation mode as well as the file name you specified (Z in above)
@@ -66,7 +66,113 @@ Simulation can be run by following steps:
     (a-2) You can use python script to plot results. 
         E.g.) You can plot evolutions of signals using caco3_signals.py. There you must change the name of result directory to read data correctly. 
 
-    (b-1) Steady-state or final state of CaCO3 concentration and burial flux are stored in a directory within /output/res/multiple/ directory.
+    (b-1) Steady-state or final state of CaCO3 concentration and burial flux are stored in a directory within /output/res/multi/ directory.
         There again the directory name changes with OM degradation scheme and bioturbation mode. See (a-1) above. 
     (b-2) You can use python script (e.g., /plot/caco3_lys.py) to plot results. 
-        
+
+-------------------- * -------- * -------------------- 
+
+EXAMPLES 
+
+1. Lysocline (Section 3.1)
+    a. Switch on 'sense' in defines.h 
+    b. Complile the code with specifying execution file name as 'sense'. 
+    c. Create shell script 'pruns.sh' to run 'sense.exe' in parallel using caco3_shell.py. 
+    d. Run shell script, i.e., type './pruns.sh' 
+        (See memo_shell_Fortran.txt for more details.)
+    e. You can plot lysocline with /plot/caco3_lys.py script.
+    
+2. Bioturbation simulation (Section 3.2.1)
+    a. Switch on 'reading' and 'timetrack' in defines.h 
+    b. Use rectime_EXAMPLE-BIOT.in and imp_input_EXAMPLE-BIOT.in. I.e., type the following: 
+        'cd ../input' 
+        'cp EXAMPLES/rectime_EXAMPLE-BIOT.in reactime.in'
+        'cp EXAMPLES/imp_input_EXAMPLE-BIOT.in imp_input.in'
+    c. Complile and run the code. (see above)
+    d. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above) 
+        *** Note also that if you want to exclude CaCO3 dissolution, 
+            you need to switch on 'nondissolve' in /input/defines.h and repeat the above procedure. 
+
+3. Dissolution experiment (Section 3.2.2)
+    a. Switch on 'reading' and 'timetrack' in defines.h 
+    b. Use rectime_EXAMPLE-DIS.in and imp_input_EXAMPLE-DIS-xx.in. 
+        xx can be CNTRL, 4.5 or 5.0, depending on the water depth change scinario you want to impose. 
+        I.e., type the following: 
+        'cd ../input' 
+        'cp EXAMPLES/rectime_EXAMPLE-DIS.in reactime.in'
+        'cp EXAMPLES/imp_input_EXAMPLE-DIS-xx.in imp_input.in'
+    c. Complile and run the code. (see above)
+    d. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above)
+            
+4. Two size fractions (Section 3.2.3)
+    a. Switch on 'reading', 'timetrack' and 'size' in defines.h 
+    b. Use rectime_EXAMPLE-SIZE.in and imp_input_EXAMPLE-SIZE.in. 
+        I.e., type the following: 
+        'cd ../input' 
+        'cp EXAMPLES/rectime_EXAMPLE-SIZE.in reactime.in'
+        'cp EXAMPLES/imp_input_EXAMPLE-SIZE.in imp_input.in'
+    c. Complile and run the code. (see above)
+    d. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above)
+            
+5. Time-stepping method (Section 4.1)
+    a. Switch on 'track2' in defines.h 
+    b. Complile and run the code. 
+        Because input files are not used, you need to specify rain flux and rain ratio when running.
+        I.e., type: 
+        './a.exe cc 12e-6 rr 0.7 dep 5.0 biot fickian ox false fl test_time-stepping-method'
+        './a.exe cc 12e-6 rr 0.7 dep 5.0 biot turbo2 ox false fl test_time-stepping-method'
+        './a.exe cc 12e-6 rr 0.7 dep 5.0 biot nobio ox false fl test_time-stepping-method'
+        Three simulations will yield results with time-stepping method 
+            with 3 different bio-mixing styles. (see above)
+    c. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above)
+            
+6. Two size fractions (Section 4.2)
+    a. Switch on 'reading', 'timetrack' and 'isotrack' in defines.h 
+    b. Use rectime_EXAMPLE-ISO.in and imp_input_EXAMPLE-ISO.in. 
+        I.e., type the following: 
+        'cd ../input' 
+        'cp EXAMPLES/rectime_EXAMPLE-ISO.in reactime.in'
+        'cp EXAMPLES/imp_input_EXAMPLE-ISO.in imp_input.in'
+    c. Complile and run the code. (see above)
+    d. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above)
+        *** Note also that if you want to test kinetic isotope effect, 
+            you need to switch on 'kie' in /input/defines.h and repeat the above procedure. 
+
+7. Two size fractions (Section 4.2)
+    a. Switch on 'reading', 'timetrack' and 'isotrack' in defines.h 
+    b. Use rectime_EXAMPLE-ISO.in and imp_input_EXAMPLE-ISO.in. 
+        I.e., type the following: 
+        'cd ../input' 
+        'cp EXAMPLES/rectime_EXAMPLE-ISO.in reactime.in'
+        'cp EXAMPLES/imp_input_EXAMPLE-ISO.in imp_input.in'
+    c. Complile and run the code. (see above)
+    d. You can plot signals with /plot/caco3_signals.py. 
+        *** Note that if you want to compare different bioturbation effect, 
+            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            (changing X in (2) above)
+        *** Note also that if you want to test kinetic isotope effect, 
+            you need to switch on 'kie' in /input/defines.h and repeat the above procedure. 
+
+8. Lysocline with using mocsy (Section 4.3)
+    a. Switch on 'sense', 'mocsy' and 'USE_PRECISION=2' in defines.h 
+    b. Complile the code with specifying execution file name as 'sense' and using mocsy.
+        (See memo_mocsy_Fortran.txt for details on how to use mocsy.)
+    c. Create shell script 'pruns.sh' to run 'sense.exe' in parallel using caco3_shell.py. 
+    d. Run shell script, i.e., type './pruns.sh' 
+        (See memo_shell_Fortran.txt for more details.)
+    e. You can plot lysocline with /plot/caco3_lys.py script.

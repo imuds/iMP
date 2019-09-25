@@ -1,7 +1,8 @@
 Signal tracking diagenesis by Python
 
 1. You need numpy and if you choose to use sparse matrix solver (asked when running), scipy 
-    If you choose to use mocsy as co2 cheimistry calculation method (asked when running), you also need mocsy (see readme_Python_mocsy.txt for installation) 
+    If you choose to use mocsy as co2 cheimistry calculation method (asked when running), 
+        you also need mocsy (see readme_Python_mocsy.txt for installation) 
 2. Main code (caco3.py) is written in Python 2.7. If you are using Python 3.x, use 2to3 to convert the code (type '2to3 caco3.py -w')
 3. Run the source code caco3.py (e.g., type 'python caco3.py'):
     You will be asked to enter variables to conduct simulations. 
@@ -88,7 +89,11 @@ Signal tracking diagenesis by Python
        sense for simulation mode
     *** NOTE: with a larger time step, simulation reaches a steady state sooner,
            but with a higher probability to face difficulty in convergence ***
-   
+
+******** CAUTION: Python ver. curresntly does not track time so time-depth relationship is estimated based on burial rate. 
+    When plotting against the burial-rate-based time scale, results by Python ver. are exactly the same as those with Fortran ver. 
+    Lysocline estimates are irrelevant to time-track so they are the same between different source codes (Fortran, Python and MATLAB). ********    
+
 Final CaCO3 wt% and burial results are stored in lys_sense_cc-xx_rr-yy.txt and ccbur_sense_cc-xx_rr-yy.txt files, respectively,
    where xx and yy are CaCO3 rain flux and OM/CaCO3 rain ratio, respectively
 Signal data at the bottom of mixed layer, at a depth as twice deep as the mixed layer bottom and at the bottom of sediment 
