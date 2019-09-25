@@ -135,7 +135,7 @@ EXAMPLES
             with 3 different bio-mixing styles. (see above)
     c. You can plot signals with /plot/caco3_signals.py. 
         *** Note that if you want to compare different bioturbation effect, 
-            you need to repeat c, run the code, with assuming different bioturbation mode. 
+            you need to repeat b, run the code, with assuming different bioturbation mode. 
             (changing X in (2) above)
             
 6. Direct-tracking method (Section 4.2)
