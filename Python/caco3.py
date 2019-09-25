@@ -2102,7 +2102,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     # switches for co2 chemistry 
     co2chem = co2chem               # dic = co2+hco3+co3; alk = hco3+2*co3
     # working directory 
-    homedir = '.'
+    homedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # file nane 
     if len(fl)==0:filename = '-no_name_specified' 
     else: filename = '-'+fl
@@ -2387,6 +2387,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
             dt = dt_save
             d13c_ocn = 0. 
             d18o_ocn = 0.
+            capd47_ocn = 0.
         d13c_flx = np.sum(d13c_sp[:]*ccflx[:])/ccflxi
         d18o_flx = np.sum(d18o_sp[:]*ccflx[:])/ccflxi
         if not (track2 or isotrack):
