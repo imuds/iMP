@@ -64,10 +64,10 @@ Output of the model:
                 'omx' in this example can be replaced with: 
                     'ccx', 'ptx', 'o2x', 'sig' or 'bur'
                     corresponding to profiles of CaCO3 system, clay, O2, proxy signals and burial rate.
-        (3) Proxy signals at certain depths
+        (3) Proxy signals at certain depths (Fortran, Python, MATLAB)
             File names are sigmly.txt, sigmlyd.txt and sigbtm.txt, 
                 recording signals at mixed layer bottom, doubled depth of mixed layer bottom and sediment bottom, respectively. 
-        (4) CaCO3 wt% and burial flux at end of each simulation as function of saturation state
+        (4) CaCO3 wt% and burial flux at end of each simulation as function of saturation state (Fortran, Python, MATLAB)
             These results are used to plot lysocline and CaCO3 burial flux. 
         
         The above output is stored in /output directory. 
