@@ -123,7 +123,7 @@ b=(1d0-dic/alk)*k1
 c=(1d0-2d0*dic/alk)*k1*k2
 ph = (-b+(b*b-4d0*a*c)**0.5d0)/2d0/a
 if (any(ph<0d0)) then
-    print*,'... unsable to calculate ph'
+    print*,'... unsable to calculate ph in calcspecies'
     ! print*,dic
     ! print*,alk
     ! print*,ph
@@ -175,7 +175,7 @@ b=(1d0-dic/alk)*k1
 c=(1d0-2d0*dic/alk)*k1*k2
 ph = (-b+(b*b-4d0*a*c)**0.5d0)/2d0/a
 if (any(ph<0d0)) then
-    print*,'... unsable to calculate ph'
+    print*,'... unsable to calculate ph in calcdevs'
     ! print*,dic
     ! print*,alk
     ! print*,ph
@@ -230,7 +230,7 @@ b=(1d0-dic/alk)*k1
 c=(1d0-2d0*dic/alk)*k1*k2
 ph = (-b+(b*b-4d0*a*c)**0.5d0)/2d0/a
 if (any(ph<0d0)) then
-    print*,'... unsable to calculate ph'
+    print*,'... unsable to calculate ph in calcco2chemsp'
     ! print*,dic
     ! print*,alk
     ! print*,ph

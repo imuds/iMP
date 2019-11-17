@@ -16,8 +16,8 @@
 ! using method2 to track signals (default 42 species)
 ! #define track2 
 
-! use time for d18O 
-#define timetrack
+! time tracking 
+! #define timetrack
 
 ! specify the background depth (default 3.5 km)
 ! #define depiinput 4.0
@@ -65,7 +65,7 @@
 ! #define nodecomp
 
 ! if assuming no caco3 dissolution 
-#define nodissolve
+! #define nodissolve
 
 ! direct isotope tracking 
 ! #define isotrack
