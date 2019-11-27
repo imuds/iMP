@@ -1,6 +1,6 @@
 
 !**************************************************************************************************************************************
-subroutine caco3(ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode) 
+subroutine caco3(ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali) 
 ! a signal tracking diagenesis
 ! v5.7 trying to implement aqueous DIC isotopologues
 implicit none 
@@ -51,8 +51,8 @@ parameter(nspcc=nspcc_wot*2)
 
 parameter(nspdic=nspdicinput)
 
-real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2
-character*255,intent(in)::filechr,biotmode
+real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali
+character*555,intent(in)::filechr,biotmode
 logical,intent(in)::oxonly
 
 integer(kind=4),parameter :: nsig = 2
@@ -84,6 +84,8 @@ real(kind=8) :: r13c_pdb = 0.011180d0 ! Fry (2006)
 real(kind=8) :: d13c_om = -25d0 ! e.g., Ridgwell and Arndt (2014) (probably vs PDB)
 real(kind=8) :: d18o_o2 = 23.5d0 ! Kroopnick and Craig (1972) vs SMOW; 18O16O/16O16O
 real(kind=8) :: d18o_so4 = 9.5d0 ! Longinelli and Craig (1967) vs SMOW
+real(kind=8) :: c14age_cc = 10d3   ! 14C-age of raining caco3
+! real(kind=8) :: c14age_cc = 0d3   ! 14C-age of raining caco3
 real(kind=8) :: f13c18o, f12c18o,f13c16o, f12c16o, f13c17o, f12c17o  !  relative to whole species 
 real(kind=8) :: f12c17o18o,f12c17o17o,f12c18o18o
 integer(kind=4) :: i12c16o=1,i12c18o=2,i13c16o=3,i13c18o=4,i14c=5
@@ -118,14 +120,20 @@ real(kind=8) :: o2i = 165d0 ! uM     ! a reference O2 ; MUDS
 ! real(kind=8) :: komi = 0.5d0  ! /yr  ! arbitrary 
 ! real(kind=8) :: komi = 0.1d0  ! /yr  ! Canfield 1994
 real(kind=8) :: komi = 0.06d0  ! /yr  ! ?? Emerson 1985? who adopted relatively slow decomposition rate 
-#ifndef nodissolve
-real(kind=8) :: kcci = 1d0*365.25d0  ! /yr  ;cf., 0.15 to 30 d-1 Emerson and Archer (1990) 0.1 to 10 d-1 in Archer 1991
+#ifdef nodissolve
+real(kind=8) :: kcci = 0d0*365.25d0  ! /yr  
+#elif defined linear
+real(kind=8) :: kcci = 1d-2*365.25d0  ! /yr  ;cf., 1e-5 to 1e-2 d-1 in Archer 1996, 1996
 #else
-real(kind=8) :: kcci = 0d0*365.25d0  ! /yr 
+real(kind=8) :: kcci = 1d0*365.25d0  ! /yr  ;cf., 0.15 to 30 d-1 Emerson and Archer (1990) 0.1 to 10 d-1 in Archer 1991
 #endif 
 real(kind=8) :: poroi = 0.8d0  ! a reference porosity 
 real(kind=8) :: keqcc = 4.4d-7   ! mol2 kg-2 caco3 solutiblity (Mucci 1983 cited by Emerson and Archer 1990)
+#ifdef linear 
+real(kind=8) :: ncc = 1.0d0   ! reaction order for caco3 dissolution to test linear dependence 
+#else 
 real(kind=8) :: ncc = 4.5d0   ! (Archer et al. 1989) reaction order for caco3 dissolution 
+#endif 
 real(kind=8) :: temp = 2d0  ! C a refernce temperature 
 real(kind=8) :: sal = 35d0  ! wt o/oo  salinity 
 real(kind=8) :: cai = 10.3d-3 ! mol kg-1 calcium conc. seawater 
@@ -185,7 +193,7 @@ real(kind=8) :: ztot = 50d0 ! cm , total sediment thickness
 #else
 real(kind=8) :: ztot = 500d0 ! cm 
 #endif
-integer(kind=4) :: nsp = 3  ! independent chemical variables, this does not have to be decided here    
+integer(kind=4) :: nsp  ! independent chemical variables, this does not have to be decided here    
 integer(kind=4) :: nmx      ! row (and col) number of matrix created to solve linear difference equations 
 real(kind=8),allocatable :: amx(:,:),ymx(:),emx(:) ! amx and ymx correspond to A and B in Ax = B, but ymx is also x when Ax = B is solved. emx is array of error 
 integer(kind=4),allocatable :: ipiv(:),dumx(:,:) ! matrix used to solve linear system Ax = B 
@@ -217,6 +225,7 @@ real(kind=8) :: trans(nz,nz,nspcc+2)  ! transition matrix
 real(kind=8) :: transdbio(nz,nz), translabs(nz,nz) ! transition matrices created assuming Fickian mixing and LABS simulation
 real(kind=8) :: transturbo2(nz,nz), translabs_tmp(nz,nz) ! transition matrices assuming random mixing and LABS simulation 
 character*512 workdir  ! work directory and created file names 
+character*555 senseID
 ! character*255 filechr  ! work directory and created file names 
 character*25 dumchr(3)  ! character dummy variables 
 character*25 arg, chr(3,4)  ! used for reading variables and dummy variables
@@ -331,10 +340,17 @@ dti2 = dti
 depi2 = dep 
 ! stop
 #endif 
-#ifndef sense 
+#ifndef nondisp 
 print*
 print*,'ccflxi    = ',ccflxi
 print*,'om2cc     = ',om2cc
+print*,'detflxi   = ',detflxi
+print*,'o2i       = ',o2i2
+print*,'alki      = ',alki2
+print*,'dici      = ',dici2
+print*,'sali      = ',sali
+print*,'co3sat    = ',co3sati
+print*,'temp      = ',tempi
 print*,'dep       = ',depi2
 print*,'dt        = ',dti2
 print*,'runname   = ',trim(adjustl(filechr))
@@ -411,11 +427,15 @@ call makegrid(beta,nz,ztot,dz,z)
 
 !!!! FUNDAMENTAL PARAMETERS !!!!!!!!!!!!!
 !! assume steady state flux for detrital material 
-#ifndef reading     
-call flxstat(  &
-    omflx,detflx,ccflx  & ! output
-    ,om2cc,ccflxi,mcc,nspcc  & ! input 
-    )
+#ifndef reading  
+ccflx = ccflxi/nspcc
+omflx = om2cc*ccflxi
+detflx = detflxi   
+temp = tempi
+o2i = o2i2
+alki = alki2
+dici = dici2
+sal = sali
 #endif    
         
 !!!!!!!!! specific boundary conditions if needed
@@ -649,7 +669,12 @@ co3i=sum(co3(1,:)) ! recording seawater conc. of co3
 #ifdef mocsy 
 cai = (0.02128d0/40.078d0) * sal/1.80655d0
 co3sat = co3i*1d3/ohmega(1)
-#endif  
+#else   
+co3sat = co3sati
+! only meaningful for steady state simulations because coefs subroutine updates co3sat at every time step 
+! co3sati read at runtime but default is based on caco3_therm 
+! different values can be read at runtime (e.g., Boudreau et al. 2020 data) 
+#endif 
 
 ptx = pt
 
@@ -737,7 +762,7 @@ do
         stop
     endif 
 #endif 
-#endif
+#endif 
     
 #ifdef timetrack    
     time_flx = sum(time_sp(:)*ccflx(:))/ccflxi
@@ -753,6 +778,7 @@ do
     dt = dti
     600 continue 
 #endif 
+! sense 
 
 #elif defined reading 
     if (warmup_done)then
@@ -831,13 +857,13 @@ do
     ccflx = 0d0
     call dic_iso(  &
         d13c_ocn,d18o_ocn,ccflxi  &
-        ! ,r14ci,capd47_ocn,c14age_ocn       &
-        ,r14ci,capd47_ocn,0d0       &! assuming 0 yr for 14C age
+        ,r14ci,capd47_ocn,c14age_cc   &
         ,r13c_pdb,r18o_pdb,r17o_pdb  &
         ,5  &
         ,ccflx(1:5)   & ! output
         )
 #endif 
+! isotrack
     
 #ifdef timetrack
 
@@ -865,6 +891,7 @@ do
 #endif 
     
 #endif 
+! reading
 
 #ifdef aqiso
     call dic_iso(  &
@@ -877,6 +904,7 @@ do
     dici = dumout(1:nspdic)
 #endif 
     !! === temperature & pressure and associated boundary changes ====
+#ifndef sense 
     ! if temperature is changed during signal change event this affect diffusion coeff etc. 
     call coefs(  &
         dif_dic,dif_alk,dif_o2,kom,kcc,co3sat,krad & ! output 
@@ -884,6 +912,7 @@ do
         ,i13c18o  &
         ,nspdic  &
         )
+#endif 
     !! /////////////////////
 
 #ifndef nonrec 
@@ -967,6 +996,7 @@ do
             ,flg_500  &
             )
         if (flg_500) then 
+            print*, 'flag is raised in calcflxom'
             dt = dt/10d0
             w = w_save  
             call calcupwindscheme(  &
@@ -1623,9 +1653,13 @@ call closefiles(  &
 close(file_input)
 #endif 
 
+senseID = ''
+#ifdef sense
+senseID = filechr
+#endif 
 ! recording end results for lysoclines and caco3 burial fluxes
 call resrec(  &
-    workdir,anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time  &
+    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID  &
     )
 
 endsubroutine caco3
@@ -1747,14 +1781,34 @@ endsubroutine getinput
 !**************************************************************************************************************************************
 
 !**************************************************************************************************************************************
-subroutine getinput_v2(ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr)
+subroutine getinput_v2(ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr,detflxi,tempi,o2i,alki,dici,co3sati,sali)
 implicit none 
 integer(kind=4) narg,ia
-character*25 arg
-real(kind=8),intent(out)::ccflxi,om2cc,dti,dep
+character*555 arg
+real(kind=8),intent(out)::ccflxi,om2cc,dti,dep,detflxi,tempi,o2i,alki,dici,co3sati,sali
 logical,intent(out)::oxonly
-character*255,intent(out):: filechr,biotchr
+character*555,intent(out):: filechr,biotchr
+! local variables
+real(kind=8)::keqcc,cai=10.3d-3
+real(kind=8)::calceqcc
+logical::get_co3sat = .false. 
+logical::get_detflx = .false. 
 
+! default values
+ccflxi = 12e-6
+om2cc = 0.7d0
+dep = 3.5d0
+dti = 1d8
+tempi = 2d0
+o2i = 165d0 
+dici = 2211d0
+alki = 2285d0
+sali = 35d0
+filechr = 'testing'
+oxonly = .false.
+biotchr = 'fickian'
+
+! get varuables at run time if specified
 narg = iargc()
 do ia = 1, narg,2
     call getarg(ia,arg)
@@ -1765,9 +1819,32 @@ do ia = 1, narg,2
         case('rr','RR','Rr')
             call getarg(ia+1,arg)
             read(arg,*)om2cc  ! reading om/caco3 rain ratio 
+        case('det','DET','Det')
+            call getarg(ia+1,arg)
+            read(arg,*)detflxi  ! reading detrital rain flux in g cm-2 yr-1
+            get_detflx = .true.
+        case('temp','TEMP','Temp')
+            call getarg(ia+1,arg)
+            read(arg,*)tempi  ! reading water temperature in Celsius 
         case('dep','DEP','Dep')
             call getarg(ia+1,arg)
             read(arg,*)dep  ! reading water depth in km 
+        case('o2','O2')
+            call getarg(ia+1,arg)
+            read(arg,*)o2i  ! reading oxygen conc. in uM  
+        case('dic','DIC','Dic')
+            call getarg(ia+1,arg)
+            read(arg,*)dici  ! reading dic conc. in uM  
+        case('alk','ALK','Alk')
+            call getarg(ia+1,arg)
+            read(arg,*)alki  ! reading alk conc. in uM  
+        case('sal','SAL','Sal')
+            call getarg(ia+1,arg)
+            read(arg,*)sali  ! reading salinigy in wt o/oo
+        case('co3sat','CO3SAT','Co3sat')
+            call getarg(ia+1,arg)
+            read(arg,*)co3sati  ! reading co3sat conc. in M***  
+            get_co3sat = .true.
         case('dt','DT','Dt')
             call getarg(ia+1,arg)
             read(arg,*)dti   ! reading time step used in calculation 
@@ -1783,7 +1860,13 @@ do ia = 1, narg,2
     end select
 enddo
 
-! stop
+! default saturation CO3 conc. in M, using either default or input temp, salinity and depth 
+if (.not. get_co3sat) then 
+    keqcc = calceqcc(tempi,sali,dep) ! calcite solubility function called from caco3_therm.f90
+    co3sati = keqcc/cai
+endif
+! default detrital rain flux to realize 90% of mass flux becomes inorganic C in g cm-2 yr-1
+if (.not.get_detflx) detflxi = (1d0/9d0)*ccflxi*100d0 
 
 endsubroutine getinput_v2 
 !**************************************************************************************************************************************
@@ -3577,7 +3660,7 @@ endsubroutine calcflxo2_sbox
 subroutine calccaco3sys(  &
     ccx,dicx,alkx,rcc,dt  & ! in&output
     ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic & ! input
-    ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,ohmega,nz  & ! input
+    ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat_in,kcc,ccflx,ncc,ohmega,nz  & ! input
     ! ,dum_sfcsumocn  & ! input for genie geochemistry
     ,tol,poroi,flg_500,fact,file_tmp,alki,dici,ccx_th,workdir  &
     ,krad,deccc  & 
@@ -3602,7 +3685,7 @@ real(kind=8)::loc_error,prox(nz),co2x(nz,nspdic),hco3x(nz,nspdic),co3x(nz,nspdic
 real(kind=8)::drcc_dco3(nz,nspcc),drcc_ddic(nz,nspcc,nspdic),drcc_dalk(nz,nspcc),info(90),control(20)
 real(kind=8)::drcc_dohmega(nz,nspcc),dohmega_dalk(nz),dohmega_ddic(nz),ohmega(nz)
 real(kind=8),allocatable :: amx(:,:),ymx(:),emx(:),dumx(:,:),ax(:),kai(:),bx(:)
-real(kind=8),intent(in)::co3sat,respoxiso(nspdic),respaniso(nspdic),dif_dic(nz,nspdic)
+real(kind=8),intent(in)::co3sat_in,respoxiso(nspdic),respaniso(nspdic),dif_dic(nz,nspdic)
 ! only when directly tracking isotopes 
 real(kind=8),intent(in)::krad(nz,nspcc)  ! caco3 decay consts (for 14c alone)
 real(kind=8),intent(out)::deccc(nz,nspcc),decdic(nz,nspdic)  ! radio-active decay rate of caco3 
@@ -3614,6 +3697,7 @@ real(kind=8)::dev = 1d-7,co3dum(nz),co2dum(nz),hco3dum(nz),alkdum(nz),protdum(nz
 real(kind=8)::ccfact=10d0,dicfact=10d0,alkfact=10d0
 integer(kind=4)::itr_max=200
 real(kind=8)::infinity = huge(0d0)
+real(kind=8)::co3sat(nspcc)
 
 
 ! for genie geochemistry
@@ -3758,45 +3842,46 @@ decdic = 0d0
 ddecdic_ddic = 0d0
 deccc = 0d0
 ddeccc_dcc = 0d0
+co3sat = co3sat_in
 do isp=1,nspcc
     ! calculation of dissolution rate for individual species 
 #ifndef aqiso
-    rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat)**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat)>0d0)
+    rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
     ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
-    drcc_dcc(:,isp,isp) = kcc(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat)**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat)>0d0)
-    drcc_dco3(:,isp) = kcc(:,isp)*ccx(:,isp)*ncc*abs(1d0-co3x(:,1)*1d3/co3sat)**(ncc-1d0)  &
-        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat)>0d0)*(-1d3/co3sat)
+    drcc_dcc(:,isp,isp) = kcc(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    drcc_dco3(:,isp) = kcc(:,isp)*ccx(:,isp)*ncc*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(ncc-1d0)  &
+        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)*(-1d3/co3sat(isp))
     drcc_ddic(:,isp,1) = drcc_dco3(:,isp)*dco3_ddic(:,1,1)
     drcc_dalk(:,isp) = drcc_dco3(:,isp)*dco3_dalk(:,1)
     deccc(:,isp) = krad(:,isp)*ccx(:,isp)
     ddeccc_dcc(:,isp) = krad(:,isp)
 #else 
-    rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*max(0d0,1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))    &
-        **ncc*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
+    rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))    &
+        **ncc*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
     ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
     do iisp=1,nspcc
         if (iisp==isp) then 
-            drcc_dcc(:,isp,iisp) = kcc(:,isp)*max(0d0,1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))   &
-                **ncc*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)   & 
-                + kcc(:,isp)*ccx(:,isp)*ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))   &
-                **(ncc-1d0)*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)   & 
+            drcc_dcc(:,isp,iisp) = kcc(:,isp)*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))   &
+                **ncc*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)   & 
+                + kcc(:,isp)*ccx(:,isp)*ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))   &
+                **(ncc-1d0)*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)   & 
                 *merge(  &
-                    (-co3x(:,isp)*1d3/co3sat  &
+                    (-co3x(:,isp)*1d3/co3sat(isp)  &
                     *(-1d0*(sum(ccx(:,:),dim=2)/ccx(:,isp))/ccx(:,isp)+1d0/ccx(:,isp)*1d0))  &
                     ,0d0  &
-                    ,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0   &
+                    ,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0   &
                     )
         elseif (iisp/=isp) then 
             drcc_dcc(:,isp,iisp) = kcc(:,isp)*ccx(:,isp)  &
-                *ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))    &
-                **(ncc-1d0)*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
-                *(-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*1d0)
+                *ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))    &
+                **(ncc-1d0)*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+                *(-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*1d0)
         endif 
     enddo
-    drcc_dco3(:,isp) = kcc(:,isp)*ccx(:,isp)*ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+    drcc_dco3(:,isp) = kcc(:,isp)*ccx(:,isp)*ncc*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
         **(ncc-1d0)  &
-        *merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
-        *(-1d3/co3sat/ccx(:,isp)*sum(ccx(:,:),dim=2))
+        *merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+        *(-1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))
     do iisp=1,nspdic
         drcc_ddic(:,isp,iisp) = drcc_dco3(:,isp)*dco3_ddic(:,isp,iisp)
     enddo 
@@ -3846,15 +3931,15 @@ if (any(isnan(rcc)).or.any(abs(rcc)>infinity)) then
                 print *, 'nan in rcc at ',iz, 'with sp# ',isp
                 print *, '    ... values'  &
                     ,ccx(iz,isp)   &
-                    ,abs(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))  &
-                    ,merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)  &
+                    ,abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                    ,merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)  &
                     ,ccx(iz,isp)  &
-                    *abs(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                    *abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
                     **ncc   &
-                    *merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))>0d0) &
-                    ,abs(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                    *merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0) &
+                    ,abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
                     **ncc   &
-                    ,ccx(iz,isp)*abs(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                    ,ccx(iz,isp)*abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
                     **ncc   
             endif 
         enddo 
@@ -3874,9 +3959,9 @@ if (any(isnan(drcc_dcc)).or.any(abs(drcc_dcc)>infinity)) then
                     print *, 'nan/inf in drcc_dcc at ',iz, 'for sp# ',isp,'wrt sp#',iisp
                     print *, ' ...values are'
                     print *, '              '  &
-                        ,max(0d0,1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))   &
-                        ,merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)   & 
-                        ,(-co3x(iz,isp)*1d3/co3sat  &
+                        ,max(0d0,1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))   &
+                        ,merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)   & 
+                        ,(-co3x(iz,isp)*1d3/co3sat(isp)  &
                         *(-1d0*(sum(ccx(iz,:))/ccx(iz,isp))/ccx(iz,isp)+1d0/ccx(iz,isp)*1d0))
                 endif 
             enddo 
@@ -5582,7 +5667,7 @@ endsubroutine closefiles
 
 !**************************************************************************************************************************************
 subroutine resrec(  &
-    workdir,anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time  &
+    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID  &
     )
 implicit none
 integer(kind=4),intent(in)::nspcc,file_tmp,nz,izml
@@ -5590,12 +5675,13 @@ real(kind=8),intent(in)::co3i,co3sat,mcc(nspcc)
 real(kind=8),dimension(nz,nspcc),intent(in)::ccx
 real(kind=8),dimension(nz),intent(in)::rho,frt
 real(kind=8),dimension(nspcc),intent(in)::ccadv
-character*255,intent(inout)::workdir
+character*255,intent(inout)::senseID
 logical,intent(in)::anoxic
 logical,dimension(nspcc+2),intent(in)::labs,turbo2,nobio
 character*25,intent(in)::chr(3,4)
 real(kind=8),intent(in)::dt,time
 integer(kind=4),intent(in)::it
+character*1000::workdir
 
 ! workdir = 'C:/Users/YK/Desktop/Sed_res/'
 workdir = '../../'
@@ -5613,7 +5699,9 @@ endif
 if (any(labs)) workdir = trim(adjustl(workdir))//'-labs'
 if (any(turbo2)) workdir = trim(adjustl(workdir))//'-turbo2'
 if (any(nobio)) workdir = trim(adjustl(workdir))//'-nobio'
-
+#ifdef sense 
+workdir = trim(adjustl(workdir))//'_'//trim(adjustl(senseID))
+#endif 
 workdir = trim(adjustl(workdir))//'/'
 
 call system ('mkdir -p '//trim(adjustl(workdir)))

@@ -156,6 +156,62 @@ co3=dic/(ph*ph/k1/k2+ph/k2+1d0)
 ! ph=-log10(ph)
 endsubroutine calcspecies_dicph
 
+subroutine calcspecies_dicco3(dic,co3,tmp,sal,dep,co2,hco3,ph,alk,nz,info) ! returning the same units as inputs (?)
+implicit none
+integer(kind=4),intent(in) :: nz
+integer(kind=4),intent(out)::info
+real(kind=8),intent(in)::dic(nz),co3(nz),tmp,sal,dep
+real(kind=8),intent(out)::co2(nz),hco3(nz),ph(nz),alk(nz)
+real(kind=8)::calceq1,calceq2,k1,k2
+real(kind=8)::a(nz),b(nz),c(nz)
+
+info=0
+k1=calceq1(tmp,sal,dep)
+k2=calceq2(tmp,sal,dep)
+a=1d0/k1/k2
+b=1d0/k2
+c=1d0-dic/co3
+ph = (-b+(b*b-4d0*a*c)**0.5d0)/2d0/a
+if (any(ph<0d0)) then
+    print*,'... unsable to calculate ph in calcspecies_dicco3'
+    ! print*,dic
+    ! print*,alk
+    ! print*,ph
+    ! stop
+    info=1
+    return
+endif
+co2 = dic/(1d0+k1/ph+k1*k2/ph/ph)
+hco3=dic/(ph/k1+1d0+k2/ph)
+alk = hco3+2d0*co3
+endsubroutine calcspecies_dicco3
+
+subroutine calcspecies_alkco3(alk,co3,tmp,sal,dep,co2,hco3,ph,dic,nz,info) ! returning the same units as inputs (?)
+implicit none
+integer(kind=4),intent(in) :: nz
+integer(kind=4),intent(out)::info
+real(kind=8),intent(in)::alk(nz),co3(nz),tmp,sal,dep
+real(kind=8),intent(out)::co2(nz),hco3(nz),ph(nz),dic(nz)
+real(kind=8)::calceq1,calceq2,k1,k2
+
+info=0
+k1=calceq1(tmp,sal,dep)
+k2=calceq2(tmp,sal,dep)
+ph = (alk/co3-2d0)*k2
+if (any(ph<0d0)) then
+    print*,'... unsable to calculate ph in calcspecies_alkco3'
+    ! print*,dic
+    ! print*,alk
+    ! print*,ph
+    ! stop
+    info=1
+    return
+endif
+co2 = ph*ph*co3/k1/k2
+hco3= alk-2d0*co3
+dic = co2+hco3+co3
+endsubroutine calcspecies_alkco3
+
 subroutine calcdevs(dic,alk,tmp,sal,dep,nz,info,dco3_dalk,dco3_ddic) ! returning the same units as inputs (?)
 implicit none
 integer(kind=4),intent(in) :: nz
