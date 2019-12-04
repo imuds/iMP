@@ -20,6 +20,7 @@ par_names = [
     ,'d13c'                 # delta-13C in ocean (you name different proxy if you want)
     ,'d18o'                 # delta-18O in ocean  (you name different proxy if you want)
     ,'capd47'               # Cap-Delta 47 in ocean (used only simulating clumped isotopes)
+    ,'14cage'               # Radiocarbon (14C) age in ocean in year (used only simulating clumped isotopes)
     ,'dt'                   # time step in yr 
     ]
 n_par = len(par_names)
@@ -49,6 +50,7 @@ par_values_base = [
     ,0.  
     ,0.   
     ,0.   
+    ,0.   
     ,dt
     ]
 #--- specify parameter values when they are changed with time
@@ -59,20 +61,27 @@ par_values_spec = [
     ,[]  # temp
     ,[]  # sal
     # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[3.5,3.5,4.5,4.5,3.5,3.5]]  #dep 
+    # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[3.5,3.5,5.0,5.0,3.5,3.5]]  #dep 
     ,[[time_start,time_end],[3.5,3.5]]  #dep 
+    # ,[[time_start,time_end],[4.5,4.5]]  #dep 
+    # ,[[time_start,time_end],[5.0,5.0]]  #dep 
     ,[]  # dic
     ,[]  # alk
     ,[]  # o2
     ,[]  # ccflx
     ,[]  # omflx 
     ,[]  # detflx
-    ,[[time_start,40e3,65e3,90e3,time_end],[0.5,0.5,0.1,0.5,0.5]]  # flxfin
+    # ,[[time_start,40e3,65e3,90e3,time_end],[0.5,0.5,0.1,0.5,0.5]]  # flxfin
+    ,[]  # flxfin
     ,[[time_start,40e3,45e3,85e3,90e3,time_end],[2.,2.,-1.,-1.,2.,2.]]  # d13c
     # ,[[time_start,40e3,45e3,time_end],[2.,2.,-1.,-1.]]  # d13c
     ,[[time_start,40e3,65e3,90e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
-    # ,[[time_start,40e3,45e3/2.,45e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
-    # ,[[time_start,40e3,65e3,90e3,time_end],[0.6,0.6,0.5,0.6,0.6]]  # capd47
-    ,[]  # capd47
+    # ,[[time_start,40e3,42.5e3,45e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
+    ,[[time_start,40e3,65e3,90e3,time_end],[0.6,0.6,0.5,0.6,0.6]]  # capd47
+    # ,[]  # capd47
+    # ,[]  # 14cage
+    ,[[time_start,time_end],[1e3,1e3]]  #14cage
+    # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[10e3,10e3,5e3,5e3,10e3,10e3]]  # 14cage
     ,[]  # dt
     ]
 

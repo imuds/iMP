@@ -14,6 +14,10 @@ integer(kind=4)nspdic
 #define nzinput 100
 #endif 
 
+#if defined(aqiso) && !defined(isotrack)
+#define isotrack
+#endif 
+
 #ifndef nspccinput
 #ifdef sense
 #define nspccinput 1
@@ -49,7 +53,11 @@ parameter(nspcc=nspcc_wot)
 parameter(nspcc=nspcc_wot*2)
 #endif 
 
+#if defined(aqiso) && defined(timetrack)
+parameter(nspdic=nspdicinput*2)
+#else 
 parameter(nspdic=nspdicinput)
+#endif 
 
 real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali
 character*555,intent(in)::filechr,biotmode
@@ -84,8 +92,8 @@ real(kind=8) :: r13c_pdb = 0.011180d0 ! Fry (2006)
 real(kind=8) :: d13c_om = -25d0 ! e.g., Ridgwell and Arndt (2014) (probably vs PDB)
 real(kind=8) :: d18o_o2 = 23.5d0 ! Kroopnick and Craig (1972) vs SMOW; 18O16O/16O16O
 real(kind=8) :: d18o_so4 = 9.5d0 ! Longinelli and Craig (1967) vs SMOW
-real(kind=8) :: c14age_cc = 10d3   ! 14C-age of raining caco3
-! real(kind=8) :: c14age_cc = 0d3   ! 14C-age of raining caco3
+! real(kind=8) :: c14age_cc = 10d3   ! 14C-age of raining caco3
+real(kind=8) :: c14age_cc = 0d3   ! 14C-age of raining caco3
 real(kind=8) :: f13c18o, f12c18o,f13c16o, f12c16o, f13c17o, f12c17o  !  relative to whole species 
 real(kind=8) :: f12c17o18o,f12c17o17o,f12c18o18o
 integer(kind=4) :: i12c16o=1,i12c18o=2,i13c16o=3,i13c18o=4,i14c=5
@@ -123,7 +131,7 @@ real(kind=8) :: komi = 0.06d0  ! /yr  ! ?? Emerson 1985? who adopted relatively 
 #ifdef nodissolve
 real(kind=8) :: kcci = 0d0*365.25d0  ! /yr  
 #elif defined linear
-real(kind=8) :: kcci = 1d-2*365.25d0  ! /yr  ;cf., 1e-5 to 1e-2 d-1 in Archer 1996, 1996
+real(kind=8) :: kcci = 1d-4*365.25d0  ! /yr  ;cf., 1e-5 to 1e-2 d-1 in Archer 1996, 1996
 #else
 real(kind=8) :: kcci = 1d0*365.25d0  ! /yr  ;cf., 0.15 to 30 d-1 Emerson and Archer (1990) 0.1 to 10 d-1 in Archer 1991
 #endif 
@@ -258,6 +266,7 @@ integer(kind=4) :: itr_w_max = 20
 real(kind=8) :: kom_ox(nz),kom_an(nz),kom_dum(nz,3)
 logical :: warmup_done = .false.
 logical :: all_oxic
+real(kind=8) :: ohmega_ave
 
 #ifdef allnobio 
 nobio = .true.
@@ -319,6 +328,8 @@ if (time_max==time_min) then
     time_max = time_max + 1d0
     time_min=time_min-1d0
 endif 
+time_max = time_max + (time_max - time_min)*1d-2
+time_min = time_min - (time_max - time_min)*1d-2
 ! print*,d13c_ocni,d13c_ocnf
 ! print*,d18o_ocni,d18o_ocnf
 ! print*,capd47_ocni,capd47_ocnf
@@ -581,22 +592,22 @@ call dic_iso(  &
     d13c_ocni,d18o_ocni,dici(1)  &
     ,r14ci,capd47_ocni,c14age_ocn       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
-    ,nspdic  &
-    ,dumout(1:nspdic)   & ! output
+    ,5  &
+    ,dumout(1:5)   & ! output
     ) 
-dici = dumout(1:nspdic)
-print * ,'printing dici', dici
+dici(1:5) = dumout(1:5)
+! print * ,'printing dici', dici
 ! pause
 call dic_iso(  &
     d13c_ocni,d18o_ocni,cc(1,1)  &
     ,r14ci,capd47_ocni,c14age_ocn       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
-    ,nspdic  &
-    ,dumout(1:nspdic)   & ! output
+    ,5  &
+    ,dumout(1:5)   & ! output
     )
-print *, 'here printing ccx(1,:)',cc(1,:)
+! print *, 'here printing ccx(1,:)',cc(1,:)
 do iz=1,nz
-    cc(iz,:)=dumout(1:nspdic)    
+    cc(iz,1:5)=dumout(1:5)
 enddo
 ! print *,'here printing cc at iz=1',cc(1,:)
 ! print *,'here printing cc at iz=2',cc(2,:)
@@ -606,18 +617,38 @@ call dic_iso(  &
     d13c_om,d18o_ocni,1d0  &
     ,r14ci,0d0,0d0       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
-    ,nspdic  &
-    ,respoxiso   & ! output
+    ,5  &
+    ,respoxiso(1:5)   & ! output
     )
 call dic_iso(  &
     d13c_om,d18o_ocni,1d0  &
     ,r14ci,0d0,0d0       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
-    ,nspdic  &
-    ,respaniso   & ! output
+    ,5  &
+    ,respaniso(1:5)   & ! output
     )
-if ((sum(respoxiso)-1d0)>tol .or. (sum(respaniso)-1d0)>tol) then 
-    print *, 'error in resp dist'
+
+#ifdef timetrack
+time = 0d0
+flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time))  ! contribuion from max age class 
+flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)) ! contribution from min age class 
+do isp=1+nspdic/2,nspdic
+    dici(isp)=flxfrc3(isp)*dici(isp-nspcc/2)
+    respoxiso(isp)=flxfrc3(isp)*respoxiso(isp-nspcc/2)
+    respaniso(isp)=flxfrc3(isp)*respaniso(isp-nspcc/2)
+    cc(:,isp)=flxfrc3(isp)*cc(:,isp-nspcc/2)
+enddo
+do isp=1,nspdic/2
+    dici(isp)=flxfrc3(isp)*dici(isp)
+    respoxiso(isp)=flxfrc3(isp)*respoxiso(isp)
+    respaniso(isp)=flxfrc3(isp)*respaniso(isp)
+    cc(:,isp)=flxfrc3(isp)*cc(:,isp)
+enddo
+#endif 
+    
+if ((sum(respoxiso)-1d0)>tol .or. (sum(respaniso)-1d0)>tol .or. abs(sum(dici)/dici2 - 1d0)>tol) then 
+    print *, 'error in initial assignment'
+    stop
 endif 
 do isp=1,nspdic
     do iz=1,nz 
@@ -669,6 +700,8 @@ co3i=sum(co3(1,:)) ! recording seawater conc. of co3
 #ifdef mocsy 
 cai = (0.02128d0/40.078d0) * sal/1.80655d0
 co3sat = co3i*1d3/ohmega(1)
+! print *, dep,ohmega(1),co3i
+! pause
 #else   
 co3sat = co3sati
 ! only meaningful for steady state simulations because coefs subroutine updates co3sat at every time step 
@@ -866,28 +899,22 @@ do
 ! isotrack
     
 #ifdef timetrack
-
     flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time))  ! contribuion from max age class 
     flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)) ! contribution from min age class 
-
     if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
         print*,'flx calc in error with including time-tracking pre',sum(ccflx),ccflxi 
         stop
     endif 
-
     do isp=1+nspcc/2,nspcc
         ccflx(isp)=flxfrc3(isp)*ccflx(isp-nspcc/2)
     enddo
-
     do isp=1,nspcc/2
         ccflx(isp)=flxfrc3(isp)*ccflx(isp)
     enddo
-
     if (abs(sum(ccflx)/ccflxi - 1d0)>tol) then 
         print*,'flx calc in error with including time-tracking aft',sum(ccflx),ccflxi 
         stop
     endif 
-
 #endif 
     
 #endif 
@@ -898,11 +925,28 @@ do
         d13c_ocn,d18o_ocn,sum(dici)  &
         ,r14ci,capd47_ocn,c14age_ocn       &
         ,r13c_pdb,r18o_pdb,r17o_pdb  &
-        ,nspdic  &
-        ,dumout(1:nspdic)   & ! output
+        ,5  &
+        ,dumout(1:5)   & ! output
         )
-    dici = dumout(1:nspdic)
+    dici(1:5) = dumout(1:5)
+
+#ifdef timetrack
+    flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time))  ! contribuion from max age class 
+    flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)) ! contribution from min age class 
+    do isp=1+nspdic/2,nspdic
+        dici(isp)=flxfrc3(isp)*dici(isp-nspcc/2)
+    enddo
+    do isp=1,nspdic/2
+        dici(isp)=flxfrc3(isp)*dici(isp)
+    enddo
+    if (abs(sum(dici)/dici2 - 1d0)>tol) then 
+        print*,'dic calc in error with including time-tracking aft',sum(dici),dici2 
+        stop
+    endif 
 #endif 
+
+#endif 
+    
     !! === temperature & pressure and associated boundary changes ====
 #ifndef sense 
     ! if temperature is changed during signal change event this affect diffusion coeff etc. 
@@ -1263,6 +1307,7 @@ do
         ,krad,deccc  & 
         ,nspdic,respoxiso,respaniso   &
         ,decdic  &
+        ,ohmega_ave &
         )
     if (flg_500) then 
         dt = dt/10d0
@@ -1334,6 +1379,11 @@ do
          ,nspdic,respoxiso,respaniso  & 
          ,dicrad,decdic   &
          )
+    if (sum(ccdis)/=0d0) then 
+        ohmega_ave = ohmega_ave/sum(ccdis)
+    else 
+        ohmega_ave = 1d0
+    endif 
     ! if (flg_500) go to 500
     
     ! ~~~~ calculation clay  ~~~~~~~~~~~~~~~~~~
@@ -1526,7 +1576,7 @@ do
 #endif 
 
 #ifdef aqiso 
-    
+#ifndef timetrack    
         r18o_pw(iz) = sum((/dicx(iz,i12c18o),dicx(iz,i13c18o)/))  &
             /sum((/3d0*dicx(iz,i12c16o),3d0*dicx(iz,i13c16o),2d0*dicx(iz,i12c18o),2d0*dicx(iz,i13c18o)/))
         r13c_pw(iz) = sum((/dicx(iz,i13c16o),dicx(iz,i13c18o)/))  &
@@ -1543,6 +1593,26 @@ do
         r47s = r13c_pw(iz)*r18o_pw(iz) 
         
         capd47_pw(iz) = ((r47/r47s-1d0) )*1d3
+#else
+        r18o_pw(iz) = sum((/dicx(iz,i12c18o),dicx(iz,i13c18o),dicx(iz,i12c18o+nspdic/2),dicx(iz,i13c18o+nspdic/2)/))  &
+            /sum((/3d0*dicx(iz,i12c16o),3d0*dicx(iz,i13c16o),2d0*dicx(iz,i12c18o),2d0*dicx(iz,i13c18o)   &
+            ,3d0*dicx(iz,i12c16o+nspdic/2),3d0*dicx(iz,i13c16o+nspdic/2)  &
+            ,2d0*dicx(iz,i12c18o+nspdic/2),2d0*dicx(iz,i13c18o+nspdic/2)/))
+        r13c_pw(iz) = sum((/dicx(iz,i13c16o),dicx(iz,i13c18o),dicx(iz,i13c16o+nspdic/2),dicx(iz,i13c18o+nspdic/2)/))  &
+            /sum((/dicx(iz,i12c18o),dicx(iz,i12c16o),dicx(iz,i12c18o+nspdic/2),dicx(iz,i12c16o+nspdic/2)/))
+        r17o_pw(iz) = 0d0
+        d18o_pw(iz) = r2d(r18o_pw(iz),r18o_pdb)
+        d17o_pw(iz) = r2d(r17o_pw(iz),r17o_pdb)
+        d13c_pw(iz) = r2d(r13c_pw(iz),r13c_pdb)
+        d14c_pw(iz) = -8033d0*log((dicx(iz,i14c)+dicx(iz,i14c+nspdic/2))   &
+            /sum((/dicx(iz,i12c18o),dicx(iz,i12c16o),dicx(iz,i12c18o+nspdic/2),dicx(iz,i12c16o+nspdic/2)/)) &
+            /r14ci) ! Stuiver and Polach (1977)
+        
+        r47 = (dicx(iz,i13c18o)+dicx(iz,i13c18o+nspdic/2))/(dicx(iz,i12c16o)+dicx(iz,i12c16o+nspdic/2))
+        r47s = r13c_pw(iz)*r18o_pw(iz) 
+        
+        capd47_pw(iz) = ((r47/r47s-1d0) )*1d3
+#endif 
 #endif 
 
 #ifdef timetrack 
@@ -1659,7 +1729,7 @@ senseID = filechr
 #endif 
 ! recording end results for lysoclines and caco3 burial fluxes
 call resrec(  &
-    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID  &
+    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID,ohmega_ave  &
     )
 
 endsubroutine caco3
@@ -1804,7 +1874,7 @@ o2i = 165d0
 dici = 2211d0
 alki = 2285d0
 sali = 35d0
-filechr = 'testing'
+filechr = ''
 oxonly = .false.
 biotchr = 'fickian'
 
@@ -3666,6 +3736,7 @@ subroutine calccaco3sys(  &
     ,krad,deccc  & 
     ,nspdic,respoxiso,respaniso  &
     ,decdic  &
+    ,ohmega_ave &
     )
 implicit none 
 integer(kind=4),intent(in)::nspcc,nz,file_tmp,nspdic
@@ -3689,16 +3760,22 @@ real(kind=8),intent(in)::co3sat_in,respoxiso(nspdic),respaniso(nspdic),dif_dic(n
 ! only when directly tracking isotopes 
 real(kind=8),intent(in)::krad(nz,nspcc)  ! caco3 decay consts (for 14c alone)
 real(kind=8),intent(out)::deccc(nz,nspcc),decdic(nz,nspdic)  ! radio-active decay rate of caco3 
+real(kind=8),intent(out)::ohmega_ave
 real(kind=8)::ddeccc_dcc(nz,nspcc)  ! radio-active decay rate of caco3 
 real(kind=8)::ddecdic_ddic(nz,nspcc)  ! radio-active decay rate of dic 
 integer(kind=4)::iter_max = 500
 real(kind=8)::logi2real
-real(kind=8)::dev = 1d-7,co3dum(nz),co2dum(nz),hco3dum(nz),alkdum(nz),protdum(nz)
+real(kind=8)::dev = 1d-8,co3dum(nz),co2dum(nz),hco3dum(nz),alkdum(nz),protdum(nz)
 real(kind=8)::ccfact=10d0,dicfact=10d0,alkfact=10d0
 integer(kind=4)::itr_max=200
 real(kind=8)::infinity = huge(0d0)
 real(kind=8)::co3sat(nspcc)
-
+character*100::rate_law
+real(kind=8)::ccss = 36.5d0 
+! real(kind=8)::ccss = 1d3d0 
+! cm2/g; specific surface area of caco3
+! assumed to be consistent with Keir1980 rate at far-from equilibrium with 0.1 mol/cm2/yr rate const. to yield a rate of 365 yr-1
+! cf., ~17-18 cm2/g as geometric surface area ~100-20000 cm2/g as BET surface area
 
 ! for genie geochemistry
 ! REAL,DIMENSION(n_carbconst)::dum_carbconst
@@ -3843,9 +3920,54 @@ ddecdic_ddic = 0d0
 deccc = 0d0
 ddeccc_dcc = 0d0
 co3sat = co3sat_in
+ohmega_ave = 0d0
+rate_law = 'Keir1980'
+! rate_law = 'Subhus2017'
 do isp=1,nspcc
     ! calculation of dissolution rate for individual species 
 #ifndef aqiso
+    select case (trim(adjustl(rate_law)))
+    case ('Keir1980') 
+    ! print*,'Keir1980'
+    ! pause
+    rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
+    drcc_dcc(:,isp,isp) = kcc(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    drcc_dco3(:,isp) = kcc(:,isp)*ccx(:,isp)*ncc*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(ncc-1d0)  &
+        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)*(-1d3/co3sat(isp))
+    case ('Subhus2017')  
+    ! print*,'Subhus2017'
+    ! pause
+    rcc(:,isp) = ccss*ccx(:,isp)*merge(1d-4*exp(merge(0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        ,2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0))  &
+        *abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(2d0/3d0)*abs(log(co3x(:,1)*1d3/co3sat(isp)))**(1d0/6d0)    &
+        ,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    drcc_dcc(:,isp,isp) = ccss*merge(1d-4*exp(merge(0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        ,2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0))  &
+        *abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(2d0/3d0)*abs(log(co3x(:,1)*1d3/co3sat(isp)))**(1d0/6d0)    &
+        ,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    drcc_dco3(:,isp) = ccss*ccx(:,isp)*merge(1d-4*exp(merge(0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        ,2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0))  &
+        *merge(-0.69d0/log(co3x(:,1)*1d3/co3sat(isp))/log(co3x(:,1)*1d3/co3sat(isp))/(co3x(:,1)*1d3/co3sat(isp))*1d3/co3sat(isp)  &
+        ,-2.4d0/log(co3x(:,1)*1d3/co3sat(isp))/log(co3x(:,1)*1d3/co3sat(isp))/(co3x(:,1)*1d3/co3sat(isp))*1d3/co3sat(isp)  &
+        ,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0 > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0)  &
+        *abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(2d0/3d0)*abs(log(co3x(:,1)*1d3/co3sat(isp)))**(1d0/6d0)    &
+        + 1d-4*exp(merge(0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        ,2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0))  &
+        *(2d0/3d0)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(2d0/3d0-1d0)*(-1d3/co3sat(isp))  &
+        *abs(log(co3x(:,1)*1d3/co3sat(isp)))**(1d0/6d0)    &
+        + 1d-4*exp(merge(0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        ,2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0,0.69d0/log(co3x(:,1)*1d3/co3sat(isp))-17.2d0  &
+        > 2.4d0/log(co3x(:,1)*1d3/co3sat(isp))-12.3d0))  &
+        *abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(2d0/3d0)  &
+        *(1d0/6d0)*abs(log(co3x(:,1)*1d3/co3sat(isp)))**(1d0/6d0-1d0)/(co3x(:,1)*1d3/co3sat(isp))*1d3/co3sat(isp)  &
+        ,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+    endselect 
+    
     rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
     ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
     drcc_dcc(:,isp,isp) = kcc(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc*merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
@@ -3855,7 +3977,12 @@ do isp=1,nspcc
     drcc_dalk(:,isp) = drcc_dco3(:,isp)*dco3_dalk(:,1)
     deccc(:,isp) = krad(:,isp)*ccx(:,isp)
     ddeccc_dcc(:,isp) = krad(:,isp)
+    ohmega_ave = ohmega_ave + sum((1d0-poro(:))*rcc(:,isp)*dz(:)*co3x(:,1)*1d3/co3sat(isp))
 #else 
+    select case (trim(adjustl(rate_law)))
+    case ('Keir1980') 
+    ! print*,'Keir1980'
+    ! pause
     rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*max(0d0,1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))    &
         **ncc*merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
     ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
@@ -3882,6 +4009,157 @@ do isp=1,nspcc
         **(ncc-1d0)  &
         *merge(1d0,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
         *(-1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))
+    case ('Subhus2017')  
+    ! print*,'Subhus2017'
+    ! pause
+    rcc(:,isp) = ccss*ccx(:,isp)*merge(1d-4*exp(  &
+        merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+        ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+        ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+        > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+        *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+        *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+        ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
+    ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
+    do iisp=1,nspcc
+        ! dev = 1d-6
+        if (iisp==isp) then 
+            drcc_dcc(:,isp,iisp) = ccss*ccx(:,isp)*(1d0+dev)*merge(1d-4*exp(  &
+                merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)/(1d0+dev)*(sum(ccx(:,:),dim=2)+ccx(:,isp)*dev))-17.2d0  &
+                ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)/(1d0+dev)*(sum(ccx(:,:),dim=2)+ccx(:,isp)*dev))-12.3d0  &
+                ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)/(1d0+dev)*(sum(ccx(:,:),dim=2)+ccx(:,isp)*dev))**(2d0/3d0)  &
+                *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)/(1d0+dev)*(sum(ccx(:,:),dim=2)+ccx(:,isp)*dev)))**(1d0/6d0)    &
+                ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
+            drcc_dcc(:,isp,iisp) = (drcc_dcc(:,isp,iisp) - rcc(:,isp))/ccx(:,isp)/dev
+            ! drcc_dcc(:,isp,iisp) = ccss*merge(1d-4*exp(  &
+                ! merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+                ! ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+                ! *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+                
+                ! + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(-0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))   &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(-1d0/ccx(:,isp)*sum(ccx(:,:),dim=2)+1d0))  &
+                ! ,-2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(-1d0/ccx(:,isp)*sum(ccx(:,:),dim=2)+1d0))  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+                ! *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)   &
+                
+                ! + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+                ! ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *(2d0/3d0)*abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0-1d0)  &
+                ! *(-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(-1d0/ccx(:,isp)*sum(ccx(:,:),dim=2)+1d0))  &
+                ! *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+                
+                ! + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+                ! ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+                ! *(1d0/6d0)*abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0-1d0)    &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(-1d0/ccx(:,isp)*sum(ccx(:,:),dim=2)+1d0))  &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  
+        elseif (iisp/=isp) then 
+            drcc_dcc(:,isp,iisp) = ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(sum(ccx(:,:),dim=2)+ccx(:,iisp)*dev))-17.2d0  &
+                ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(sum(ccx(:,:),dim=2)+ccx(:,iisp)*dev))-12.3d0  &
+                ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(sum(ccx(:,:),dim=2)+ccx(:,iisp)*dev))**(2d0/3d0)  &
+                *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*(sum(ccx(:,:),dim=2)+ccx(:,iisp)*dev)))**(1d0/6d0)    &
+                ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
+            drcc_dcc(:,isp,iisp) = (drcc_dcc(:,isp,iisp) - rcc(:,isp))/ccx(:,iisp)/dev
+            ! drcc_dcc(:,isp,iisp) = ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(-0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp))  &
+                ! ,-2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp))  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+                ! *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+                
+                ! + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+                ! ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *(2d0/3d0)*abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0-1d0)  &
+                ! *(-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp))   &
+                ! *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0) &
+                
+                ! + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+                ! merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+                ! ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+                ! ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+                ! > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+                ! *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+                ! *(1d0/6d0)*abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0-1d0)    &
+                ! /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+                ! *(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp))  &
+                ! ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  
+        endif 
+    enddo
+    drcc_dco3(:,isp) = ccss*ccx(:,isp)*merge(1d-4*exp(  &
+        merge(-0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        *(1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        ,-2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        /log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        *(1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+        > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+        *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+        *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+        ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+        
+        + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+        merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+        ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+        ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+        > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+        *(2d0/3d0)*abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0-1d0)  &
+        *(-1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        *abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0)    &
+        ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)  &
+        
+        + ccss*ccx(:,isp)*merge(1d-4*exp(  &
+        merge(0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0  &
+        ,2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0  &
+        ,0.69d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-17.2d0 &
+        > 2.4d0/log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))-12.3d0))  &
+        *abs(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))**(2d0/3d0)  &
+        *(1d0/6d0)*abs(log(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2)))**(1d0/6d0-1d0)    &
+        /(co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        *(1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))  &
+        ,0d0,(1d0-co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))>0d0)
+    endselect 
     do iisp=1,nspdic
         drcc_ddic(:,isp,iisp) = drcc_dco3(:,isp)*dco3_ddic(:,isp,iisp)
     enddo 
@@ -3890,6 +4168,7 @@ do isp=1,nspcc
     ddeccc_dcc(:,isp) = krad(:,isp)
     decdic(:,isp) = krad(:,isp)*dicx(:,isp)
     ddecdic_ddic(:,isp) = krad(:,isp)
+    ohmega_ave = ohmega_ave + sum((1d0-poro(:))*rcc(:,isp)*dz(:)*co3x(:,isp)*1d3/co3sat(isp)/ccx(:,isp)*sum(ccx(:,:),dim=2))
 #endif 
 enddo
 #else
@@ -3905,6 +4184,7 @@ decdic = 0d0
 ddecdic_ddic = 0d0
 deccc = 0d0
 ddeccc_dcc = 0d0
+ohmega_ave = 0d0
 do isp=1,nspcc
     ! calculation of dissolution rate for individual species 
     rcc(:,isp) = kcc(:,isp)*ccx(:,isp)*abs(1d0-ohmega(:))**ncc*merge(1d0,0d0,(1d0-ohmega(:))>0d0)
@@ -3916,6 +4196,7 @@ do isp=1,nspcc
     drcc_dalk(:,isp) = drcc_dohmega(:,isp)*dohmega_dalk(:)
     deccc(:,isp) = krad(:,isp)*ccx(:,isp)
     ddeccc_dcc(:,isp) = krad(:,isp)
+    ohmega_ave = ohmega_ave + sum((1d0-poro(:))*rcc(:,isp)*dz(:)*ohmega(:))
 enddo
 #endif 
 
@@ -3962,7 +4243,67 @@ if (any(isnan(drcc_dcc)).or.any(abs(drcc_dcc)>infinity)) then
                         ,max(0d0,1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))   &
                         ,merge(1d0,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)   & 
                         ,(-co3x(iz,isp)*1d3/co3sat(isp)  &
-                        *(-1d0*(sum(ccx(iz,:))/ccx(iz,isp))/ccx(iz,isp)+1d0/ccx(iz,isp)*1d0))
+                        *(-1d0*(sum(ccx(iz,:))/ccx(iz,isp))/ccx(iz,isp)+1d0/ccx(iz,isp)*1d0))  &
+                        
+                        ,ccss*merge(1d-4*exp(  &
+                        merge(0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0  &
+                        ,2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0  &
+                        ,0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0 &
+                        > 2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0))  &
+                        *abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))**(2d0/3d0)  &
+                        *abs(log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:))))**(1d0/6d0)    &
+                        ,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)  &
+                        
+                        , ccss*ccx(iz,isp)*merge(1d-4*exp(  &
+                        merge(-0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))   &
+                        /((co3x(iz,isp)*1d3*sum(ccx(iz,:))/co3sat(isp))/ccx(iz,isp))  &
+                        *(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        ,-2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        *(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        ,0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0 &
+                        > 2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0))  &
+                        *abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))**(2d0/3d0)  &
+                        *abs(log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:))))**(1d0/6d0)    &
+                        ,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)   &
+                        
+                        ,merge(-0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))   &
+                        /((co3x(iz,isp)*1d3*sum(ccx(iz,:))/co3sat(isp))/ccx(iz,isp))  &
+                        *(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        ,-2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        /(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        *(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        ,0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0 &
+                        > 2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0)  &
+                        
+                        , ccss*ccx(iz,isp)*merge(1d-4*exp(  &
+                        merge(0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0  &
+                        ,2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0  &
+                        ,0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0 &
+                        > 2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0))  &
+                        *(2d0/3d0)*abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))**(2d0/3d0-1d0)  &
+                        *(-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        *abs(log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:))))**(1d0/6d0)    &
+                        ,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0)  &
+                        
+                        ,abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))**(2d0/3d0)  &
+                        
+                        ,abs(log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:))))**(1d0/6d0)    &
+                        
+                        , ccss*ccx(iz,isp)*merge(1d-4*exp(  &
+                        merge(0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0  &
+                        ,2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0  &
+                        ,0.69d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-17.2d0 &
+                        > 2.4d0/log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))-12.3d0))  &
+                        *abs(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))**(2d0/3d0)  &
+                        *(1d0/6d0)*abs(log(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:))))**(1d0/6d0-1d0)    &
+                        /(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))  &
+                        *(co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*(-1d0/ccx(iz,isp)*sum(ccx(iz,:))+1d0))  &
+                        ,0d0,(1d0-co3x(iz,isp)*1d3/co3sat(isp)/ccx(iz,isp)*sum(ccx(iz,:)))>0d0) 
                 endif 
             enddo 
         enddo 
@@ -5667,11 +6008,11 @@ endsubroutine closefiles
 
 !**************************************************************************************************************************************
 subroutine resrec(  &
-    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID  &
+    anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID,ohmega_ave  &
     )
 implicit none
 integer(kind=4),intent(in)::nspcc,file_tmp,nz,izml
-real(kind=8),intent(in)::co3i,co3sat,mcc(nspcc)
+real(kind=8),intent(in)::co3i,co3sat,mcc(nspcc),ohmega_ave
 real(kind=8),dimension(nz,nspcc),intent(in)::ccx
 real(kind=8),dimension(nz),intent(in)::rho,frt
 real(kind=8),dimension(nspcc),intent(in)::ccadv
@@ -5700,7 +6041,7 @@ if (any(labs)) workdir = trim(adjustl(workdir))//'-labs'
 if (any(turbo2)) workdir = trim(adjustl(workdir))//'-turbo2'
 if (any(nobio)) workdir = trim(adjustl(workdir))//'-nobio'
 #ifdef sense 
-workdir = trim(adjustl(workdir))//'_'//trim(adjustl(senseID))
+if (.not. trim(adjustl(senseID))=='') workdir = trim(adjustl(workdir))//'_'//trim(adjustl(senseID))
 #endif 
 workdir = trim(adjustl(workdir))//'/'
 
@@ -5711,7 +6052,7 @@ open(unit=file_tmp,file=trim(adjustl(workdir))//'lys_sense_'//    &
     //'.res',action='write',status='unknown',access='append') 
 write(file_tmp,*) 1d6*(co3i*1d3-co3sat), sum(ccx(1,:)*mcc(:))/rho(1)*100d0, frt(1)  &
     ,sum(ccx(nz,:)*mcc(:))/rho(nz)*100d0, frt(nz),sum(ccx(izml,:)*mcc(:))/rho(izml)*100d0, frt(izml)  &
-    ,dt,it,time 
+    ,ohmega_ave,dt,it,time 
 close(file_tmp)
 
 open(unit=file_tmp,file=trim(adjustl(workdir))//'ccbur_sense_'// &
