@@ -23,8 +23,9 @@ addname = ''
 mixing = ''
 ##mixing = 'turbo2'
 
-Workdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-Workdir += '/output/res/'
+Workdir = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+Workdir += '/imp_output/fortran/res/'
 if python:Workdir+='python/'
 Workdir+='multi/'
 if not mixing=='':
@@ -87,7 +88,7 @@ fig = plt.figure(figsize=(7,10))
 #    and 10 and 5 data for CaCO3 wt% and bur flx, respectively
 #   (thus, 10 and 5 may change depending on the number of data
 #       you restore: previously these are 7 and 2)
-data_lys = np.zeros((5,10,25,10),dtype=np.float)
+data_lys = np.zeros((5,10,25,11),dtype=np.float)
 data_bur = np.zeros((5,10,25,5),dtype=np.float)
 if python:
     data_lys = np.zeros((5,10,25,7),dtype=np.float)
