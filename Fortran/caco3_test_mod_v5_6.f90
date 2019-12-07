@@ -160,6 +160,11 @@ real(kind=8) :: ox2om = 1.3d0 ! o2/om ratio for om decomposition (Emerson 1985; 
 real(kind=8) :: o2th = 0d0 ! threshold oxygen level below which not to calculate 
 real(kind=8) :: dev = 1d-6 ! deviation addumed 
 real(kind=8) :: zml_ref = 12d0 ! a referece mixed layer depth
+#ifndef DBL
+real(kind=8) :: dbl_ref = 0d0  ! a reference diffusion boundary layer thickness 
+#else
+real(kind=8) :: dbl_ref = 0.3d0 ! a reference diffusion boundary layer thickness 
+#endif 
 real(kind=8) :: ccx_th = 1d-300 ! threshold caco3 conc. (mol cm-3) below which calculation is not conducted 
 real(kind=8) :: omx_th = 1d-300 ! threshold om    conc. (mol cm-3) below which calculation is not conducted 
 real(kind=8) dif_alk0, dif_dic0, dif_o20  ! diffusion coefficient of alk, dik and o2 in seawater 
@@ -433,8 +438,8 @@ call makeprofdir(  &  ! make profile files and a directory to store them
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!  MAKING GRID !!!!!!!!!!!!!!!!! 
-beta = 1.00000000005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
-! beta = 1.005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
+! beta = 1.00000000005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
+beta = 1.005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
 call makegrid(beta,nz,ztot,dz,z)
 ! stop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -574,7 +579,7 @@ call sig2sp_pre(  &  ! end-member signal assignment
 !!!! TRANSITION MATRIX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 call make_transmx(  &
     trans,izrec,izrec2,izml,nonlocal  & ! output 
-    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
+    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir,dbl_ref  & ! input
     )
 
 !~~~~~~~~diffusion & reaction~~~~~~~~~~~~~~~~~~~~~~
@@ -2374,20 +2379,20 @@ endsubroutine sig2sp_pre
 
 !**************************************************************************************************************************************
 subroutine make_transmx(  &
-    trans,izrec,izrec2,izml,nonlocal  & ! output 
-    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir  & ! input
+    trans,izrec,izrec2,izml,nonlocal  &! output 
+    ,labs,nspcc,turbo2,nobio,dz,sporo,nz,z,file_tmp,zml_ref,workdir,dbl_ref  &! input
     )
 implicit none
 integer(kind=4),intent(in)::nspcc,nz,file_tmp
-real(kind=8),intent(in)::dz(nz),sporo(nz),z(nz),zml_ref
+real(kind=8),intent(in)::dz(nz),sporo(nz),z(nz),zml_ref,dbl_ref
 logical,intent(in)::labs(nspcc+2),turbo2(nspcc+2),nobio(nspcc+2)
 real(kind=8),intent(out)::trans(nz,nz,nspcc+2)
 logical,intent(out)::nonlocal(nspcc+2)
 integer(kind=4),intent(out)::izrec,izrec2,izml
 character*255,intent(in)::workdir
-integer(kind=4) nlabs,ilabs,iz,isp, iiz
+integer(kind=4) nlabs,ilabs,iz,isp,iiz,izdbl
 real(kind=8) :: translabs(nz,nz),translabs_tmp(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz)
-real(kind=8) :: zml(nspcc+2),zrec,zrec2,probh
+real(kind=8) :: zml(nspcc+2),zrec,zrec2,probh,dbl
 character*25 dumchr(3)
 
 !~~~~~~~~~~~~ loading transition matrix from LABS ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2444,13 +2449,19 @@ write(file_tmp,*) 2,izrec2,z(izrec2)
 write(file_tmp,*) 3,nz,z(nz)  
 close(file_tmp)
 
+dbl = dbl_ref
+
 nonlocal = .false. ! initial assumption 
 do isp=1,nspcc+2
     if (turbo2(isp) .or. labs(isp)) nonlocal(isp)=.true. ! if mixing is made by turbo2 or labs, then nonlocal 
     
     dbio=0d0
+    izdbl=0
     do iz = 1, nz
-        if (z(iz) <=zml(isp)) then
+        if (z(iz) <= dbl) then 
+            dbio(iz) = 0d0
+            izdbl = iz
+        elseif (dbl < z(iz) .and. z(iz) <=zml(isp)) then
             dbio(iz) =  0.15d0   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
             izml = iz   ! determine grid of bottom of mixed layer 
         else
@@ -2459,8 +2470,8 @@ do isp=1,nspcc+2
     enddo
 
     transdbio = 0d0   ! transition matrix to realize Fickian mixing with biodiffusion coefficient dbio which is defined just above 
-    do iz = 1, izml
-        if (iz==1) then 
+    do iz = max(1,izdbl), izml
+        if (iz==max(1,izdbl)) then 
             transdbio(iz,iz) = 0.5d0*(sporo(iz)*dbio(iz)+sporo(iz+1)*dbio(iz+1))*(-1d0)/(0.5d0*(dz(iz)+dz(iz+1)))
             transdbio(iz+1,iz) = 0.5d0*(sporo(iz)*dbio(iz)+sporo(iz+1)*dbio(iz+1))*(1d0)/(0.5d0*(dz(iz)+dz(iz+1)))
         elseif (iz==izml) then 
@@ -2479,9 +2490,9 @@ do isp=1,nspcc+2
     transturbo2 = 0d0
     ! ending up in upward mixing 
     probh = 0.0010d0
-    transturbo2(:izml,:izml) = probh  ! arbitrary assumed probability 
+    transturbo2(max(1,izdbl):izml,max(1,izdbl):izml) = probh  ! arbitrary assumed probability 
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
-       transturbo2(iz,iz)=-probh*(izml-1)  
+       transturbo2(iz,iz)=-probh*(izml-max(1,izdbl))  
     enddo
     ! trying real homogeneous 
     ! transturbo2 = 0d0
