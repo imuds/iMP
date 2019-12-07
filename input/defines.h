@@ -61,6 +61,9 @@
 ! specify ref cc dissolution rate const (default 365.25 [yr-1])
 ! #define kcci_input 365.25
 
+! if assuming linear rate law for CaCO3 dissolution
+! #define linear
+
 ! if assuming no om decomposition 
 ! #define nodecomp
 
@@ -68,13 +71,19 @@
 ! #define nodissolve
 
 ! direct isotope tracking 
-! #define isotrack
+#define isotrack
 
 ! kinetic isotope effect
 ! #define kie
 
 ! isotope tracking also for dic
-! #define aqiso
+#define aqiso
+
+! allow precipitation 
+#define precip
+
+! consider diffusion boundary layer 
+! #define DBL
 
 ! direct isotope tracking with including 17O 
 ! #define fullclump
