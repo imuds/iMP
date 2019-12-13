@@ -82,8 +82,17 @@
 ! allow precipitation 
 #define precip
 
+! no 14c radio-decay 
+! #define noradio
+
 ! consider diffusion boundary layer 
 ! #define DBL
+
+! consider DIC and ALK fluxes from hydrate model
+! #define methane 
+
+! stepwise warm up (first reaching steady state) (better to use when allowing precipitation?)
+#define stepwarm
 
 ! direct isotope tracking with including 17O 
 ! #define fullclump
