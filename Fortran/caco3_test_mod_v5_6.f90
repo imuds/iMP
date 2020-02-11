@@ -1,6 +1,6 @@
 
 !**************************************************************************************************************************************
-subroutine caco3(ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali) 
+subroutine caco3(ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin) 
 ! a signal tracking diagenesis
 ! v5.7 trying to implement aqueous DIC isotopologues
 implicit none 
@@ -59,7 +59,7 @@ parameter(nspdic=nspdicinput*2)
 parameter(nspdic=nspdicinput)
 #endif 
 
-real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali
+real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin
 character*555,intent(in)::filechr,biotmode
 logical,intent(in)::oxonly
 
@@ -95,6 +95,10 @@ real(kind=8) :: d18o_o2 = 23.5d0 ! Kroopnick and Craig (1972) vs SMOW; 18O16O/16
 real(kind=8) :: d18o_so4 = 9.5d0 ! Longinelli and Craig (1967) vs SMOW
 ! real(kind=8) :: c14age_cc = 10d3   ! 14C-age of raining caco3
 real(kind=8) :: c14age_cc = 0d3   ! 14C-age of raining caco3
+real(kind=8) :: c14age_om = 10d3  !  14C-age of OM (can take a wide range of values according to Griffith et al. 2010)
+real(kind=8) :: c14age_ch4 = 20d3  !  14C-age of methane (assumed value temporarily)
+real(kind=8) :: capd47_om = 0d0   ! D47 value of co2 respired from om
+real(kind=8) :: capd47_ch4 = 0d0   ! D47 value of co2 respired from ch4
 real(kind=8) :: f13c18o, f12c18o,f13c16o, f12c16o, f13c17o, f12c17o  !  relative to whole species 
 real(kind=8) :: f12c17o18o,f12c17o17o,f12c18o18o
 integer(kind=4) :: i12c16o=1,i12c18o=2,i13c16o=3,i13c18o=4,i14c=5
@@ -170,6 +174,7 @@ real(kind=8) :: dbl_ref = 0d0  ! a reference diffusion boundary layer thickness
 #else
 real(kind=8) :: dbl_ref = 0.3d0 ! a reference diffusion boundary layer thickness 
 #endif 
+real(kind=8) :: dbl_poro = 1d0 - 1d-6 ! porosity in DBL (assumed)
 real(kind=8) :: ccx_th = 1d-300 ! threshold caco3 conc. (mol cm-3) below which calculation is not conducted 
 real(kind=8) :: omx_th = 1d-300 ! threshold om    conc. (mol cm-3) below which calculation is not conducted 
 real(kind=8) dif_alk0, dif_dic0, dif_o20  ! diffusion coefficient of alk, dik and o2 in seawater 
@@ -210,8 +215,8 @@ real(kind=8) dage(nz), age(nz)  ! individual time span and age of sediment grids
 #ifdef sense
 real(kind=8) :: ztot = 50d0 ! cm , total sediment thickness 
 #else
-real(kind=8) :: ztot = 500d0 ! cm 
-! real(kind=8) :: ztot = 20000d0 ! cm 
+! real(kind=8) :: ztot = 500d0 ! cm 
+real(kind=8) :: ztot = 20000d0 ! cm 
 #endif
 integer(kind=4) :: nsp  ! independent chemical variables, this does not have to be decided here    
 integer(kind=4) :: nmx      ! row (and col) number of matrix created to solve linear difference equations 
@@ -314,6 +319,7 @@ time_max = -1d100
 time_min = 1d100
 do 
     read(file_tmp,*,end=999) time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,flxfin  &
+        ,aomflxin,zsrin  &
         ,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
     d13c_ocni = max(d13c_ocni,d13c_ocn)
     d13c_ocnf = min(d13c_ocnf,d13c_ocn)
@@ -361,7 +367,8 @@ time_min = time_min - (time_max - time_min)*1d-2
 close(file_tmp)
 ! re-reading initial data except for
 open(unit=file_tmp,file='../input/imp_input.in',status='old',action='read')
-read(file_tmp,*) time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
+read(file_tmp,*) time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,flxfin  &
+    ,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
 close(file_tmp)
 ! print*,time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,d13c_ocn,d18o_ocn,capd47_ocn,dti
 dici= 0d0
@@ -384,6 +391,8 @@ print*,'co3sat    = ',co3sati
 print*,'temp      = ',tempi
 print*,'dep       = ',depi2
 print*,'dt        = ',dti2
+print*,'aom       = ',aomflxin
+print*,'zsr       = ',zsrin
 print*,'runname   = ',trim(adjustl(filechr))
 print*,'oxonly?   = ',oxonly
 print*,'biot      = ',trim(adjustl(biotmode))
@@ -501,6 +510,7 @@ mvcc = mcc/rhocc ! caco3
 call getporosity(  &
      poro,porof,sporo,sporof,sporoi & ! output
      ,z,nz,poroi  & ! input
+     ,dbl_ref,dbl_poro  &! input 
      )
 
 ! below is the point when the calculation is re-started with smaller time step
@@ -543,6 +553,9 @@ call recordtime(  &
 #define depiinput 3.5
 #endif 
 depi = depiinput 
+#ifdef finss
+depi = dep 
+#endif 
 depf = dep   ! max depth to be changed to  
 
 flxfini = 0.5d0  !  total caco3 rain flux for fine species assumed before event 
@@ -634,23 +647,25 @@ enddo
 ! print *,'here printing cc at iz=2',cc(2,:)
 ! print *,'here printing cc at iz=nz',cc(nz,:)
 ! pause
+capd47_om = capd47_ocn
+capd47_ch4 = capd47_ocn
 call dic_iso(  &
     d13c_om,d18o_ocni,1d0  &
-    ,r14ci,0d0,0d0       &
+    ,r14ci,capd47_om,c14age_om       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
     ,5  &
     ,respoxiso(1:5)   & ! output
     )
 call dic_iso(  &
     d13c_om,d18o_ocni,1d0  &
-    ,r14ci,0d0,0d0       &
+    ,r14ci,capd47_om,c14age_om       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
     ,5  &
     ,respaniso(1:5)   & ! output
     )
 call dic_iso(  &
     d13c_ch4,d18o_ocni,1d0  &
-    ,r14ci,0d0,0d0       &
+    ,r14ci,capd47_ch4,c14age_ch4       &
     ,r13c_pdb,r18o_pdb,r17o_pdb  &
     ,5  &
     ,aomiso(1:5)   & ! output
@@ -757,7 +772,9 @@ enddo
 oxco2 = 0d0  ! initial oxic degradation 
 anco2 = 0d0  ! anoxic counterpart
 
-#ifdef methane 
+! #ifdef methane 
+#if methane == 1
+print *, 'incorporating aom directly'
 open(unit=file_tmp,file='../../hydrate_output/test/profiles/test/ch4flxss.txt',status='old',action='read')
 read(file_tmp,*)
 do iz=1,n_aom
@@ -772,18 +789,27 @@ call interp_linear( &
     )
 aomch4 = interp_data(1,:) ! in mol m-3 yr-1
 aomch4 = abs(aomch4)*1d-6  ! now in mol cm-3 yr-1
-! print *, aomch4
-! stop
-#else 
-aomch4 = 0d0
+open(unit=file_tmp,file=trim(adjustl(workdir))//'aom_v1.txt',action='write',status='unknown')
+do iz = 1, nz
+    write(file_tmp,*)z(iz),aomch4(iz)
+enddo
+close(file_tmp) 
+print *, sum(aomch4(:)*dz(:))
+pause 
 #endif 
+! stop
+! #elif methane == 2
+print *, 'calculate aom based on total flx, bot-dep of srz and Gaussian distribution'
+print*,aomflxin,zsrin
+call calc_aomprof(aomflxin,zsrin,nz,z,dz,aomch4)
+! pause 
 
 ! ~~~ saving initial conditions 
 #ifndef nonrec
 call recordprofile(  &
     0,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
     ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-    ,d17o_blk,d14c_age,capd47,time_blk,poro  &
+    ,d17o_blk,d14c_age,capd47,time_blk,poro,aomch4  &
     ,nspdic  &
     ,d13c_pw,d18o_pw,d17o_pw,d14c_pw,capd47_pw &
     )
@@ -863,7 +889,8 @@ do
 
 #elif defined reading 
     if (warmup_done)then
-        read(file_input,*) time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
+        read(file_input,*) time,temp,sal,dep,dumreal,alki,o2i,ccflxi,omflx,detflx,flxfin  &
+            ,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
         dt = dti
         dici = 0d0
         dici(1) = dumreal 
@@ -941,6 +968,8 @@ do
     print'(8E11.3)',time,temp,sal,dep,sum(dici),alki,o2i,ccflxi
     print'(8A11)','omflx','detflx','flxfin','d13c_ocn','d18o_ocn','capd47_ocn','14C_age','dti'
     print'(8E11.3)',omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti
+    print'(2A11)','zsr','aomflx'
+    print'(2E11.3)',zsrin,aomflxin
     print*
     800 continue
 #ifndef isotrack 
@@ -1045,6 +1074,8 @@ do
         ,i13c18o  &
         ,nspdic  &
         )
+    !  aom flux can also change with time 
+    call calc_aomprof(aomflxin,zsrin,nz,z,dz,aomch4)
 #endif 
     !! /////////////////////
 
@@ -1404,48 +1435,6 @@ do
         ,prec_on  &
         ,aomch4,aomiso &
         )
-! #ifndef precip
-    ! prec_on = .false.
-    ! call calccaco3sys(  &
-        ! ccx,dicx,alkx,rcc,dt  & ! in&output
-        ! ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic & ! input
-        ! ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,ohmega,nz  & ! input
-        ! ,tol,poroi,flg_500,fact,file_tmp,alki,dici,ccx_th,workdir  &
-        ! ,krad,deccc  & 
-        ! ,nspdic,respoxiso,respaniso   &
-        ! ,decdic  &
-        ! ,ohmega_ave &
-        ! ,prec_on  &
-        ! ,aomch4,aomiso &
-        ! )
-! #else 
-    ! prec_on = .false.
-    ! call calccaco3sys(  &
-        ! ccx,dicx,alkx,rcc,dt  & ! in&output
-        ! ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic & ! input
-        ! ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,ohmega,nz  & ! input
-        ! ,tol,poroi,flg_500,fact,file_tmp,alki,dici,ccx_th,workdir  &
-        ! ,krad,deccc  & 
-        ! ,nspdic,respoxiso,respaniso   &
-        ! ,decdic  &
-        ! ,ohmega_ave &
-        ! ,prec_on  &
-        ! ,aomch4,aomiso &
-        ! )
-    ! prec_on = .true.
-    ! call calccaco3sys(  &
-        ! ccx,dicx,alkx,rcc,dt  & ! in&output
-        ! ,nspcc,dic,alk,dep,sal,temp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic & ! input
-        ! ,w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc,ohmega,nz  & ! input
-        ! ,tol,poroi,flg_500,fact,file_tmp,alki,dici,ccx_th,workdir  &
-        ! ,krad,deccc  & 
-        ! ,nspdic,respoxiso,respaniso   &
-        ! ,decdic  &
-        ! ,ohmega_ave &
-        ! ,prec_on  &
-        ! ,aomch4,aomiso &
-        ! )
-! #endif 
         
     if (flg_500) then 
         dt = dt/10d0
@@ -1556,7 +1545,7 @@ do
 
     err_f = maxval(abs(frt - 1d0))  ! new error in total vol. fraction (must be 1 in theory) 
     if (err_f < err_fx) err_f_min = err_f  ! recording minimum error 
-#ifdef sense
+#if defined sense || defined finss
     if (err_f < tol) exit  ! if total vol. fraction is near enough to 1, steady-state solution is obtained 
 #endif 
     if (.not. warmup_done.and.err_f < tol_ss) then 
@@ -1779,7 +1768,7 @@ do
         call recordprofile(  &
             cntrec,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
             ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-            ,d17o_blk,d14c_age,capd47,time_blk,poro  &
+            ,d17o_blk,d14c_age,capd47,time_blk,poro,aomch4  &
             ,nspdic  &
             ,d13c_pw,d18o_pw,d17o_pw,d14c_pw,capd47_pw  &
             )
@@ -1847,6 +1836,18 @@ do
 
 enddo
 
+#ifndef nonrec
+! recording profiles at final integration 
+cntrec = 999
+call recordprofile(  &
+    cntrec,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
+    ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
+    ,d17o_blk,d14c_age,capd47,time_blk,poro,aomch4  &
+    ,nspdic  &
+    ,d13c_pw,d18o_pw,d17o_pw,d14c_pw,capd47_pw  &
+    )
+#endif 
+            
 #ifndef nonrec
 open(unit=file_tmp,file=trim(adjustl(workdir))//'sp-trace.txt',action='write',status='replace') 
 do isp  = 1,nspcc
@@ -1995,11 +1996,11 @@ endsubroutine getinput
 !**************************************************************************************************************************************
 
 !**************************************************************************************************************************************
-subroutine getinput_v2(ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr,detflxi,tempi,o2i,alki,dici,co3sati,sali)
+subroutine getinput_v2(ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr,detflxi,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin)
 implicit none 
 integer(kind=4) narg,ia
 character*555 arg
-real(kind=8),intent(out)::ccflxi,om2cc,dti,dep,detflxi,tempi,o2i,alki,dici,co3sati,sali
+real(kind=8),intent(out)::ccflxi,om2cc,dti,dep,detflxi,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin
 logical,intent(out)::oxonly
 character*555,intent(out):: filechr,biotchr
 ! local variables
@@ -2018,6 +2019,8 @@ o2i = 165d0
 dici = 2211d0
 alki = 2285d0
 sali = 35d0
+aomflxin = 0d0
+zsrin = 1d5
 filechr = ''
 oxonly = .false.
 biotchr = 'fickian'
@@ -2055,6 +2058,12 @@ do ia = 1, narg,2
         case('sal','SAL','Sal')
             call getarg(ia+1,arg)
             read(arg,*)sali  ! reading salinigy in wt o/oo
+        case('aom','AOM','Aom')
+            call getarg(ia+1,arg)
+            read(arg,*)aomflxin  ! reading aomflux in mol cm-2 yr-1
+        case('zsr','ZSR','Zsr')
+            call getarg(ia+1,arg)
+            read(arg,*)zsrin  ! reading sulfate reduction dpeth in m
         case('co3sat','CO3SAT','Co3sat')
             call getarg(ia+1,arg)
             read(arg,*)co3sati  ! reading co3sat conc. in M***  
@@ -2208,20 +2217,25 @@ endsubroutine flxstat
 subroutine getporosity(  &
      poro,porof,sporo,sporof,sporoi & ! output
      ,z,nz,poroi  & ! input
+     ,dbl_ref,dbl_poro  &! input 
      )
 implicit none
 integer(kind=4),intent(in)::nz
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(out)::poro,sporo
-real(kind=8),intent(in)::poroi 
+real(kind=8),intent(in)::poroi,dbl_ref,dbl_poro
 real(kind=8),intent(out)::porof,sporoi,sporof
 real(kind=8) calgg,pore_max,exp_pore
+integer(kind=4)iz
 
 ! ----------- Archer's parameterization 
 calgg = 0.0d0  ! caco3 in g/g (here 0 is assumed )
 pore_max =  1d0 - ( 0.483d0 + 0.45d0 * calgg) / 2.5d0  ! porosity at the bottom 
 exp_pore = 0.25d0*calgg + 3.d0 *(1d0-calgg)  ! scale depth of e-fold decrease of porosity 
 poro = EXP(-z/exp_pore) * (1.d0-pore_max) + pore_max 
+do iz=1,nz
+    if (z(iz)<dbl_ref) poro(iz) = dbl_poro
+enddo 
 ! poro = poroi  ! constant porosity 
 porof = pore_max  ! porosity at the depth 
 porof = poro(nz)  ! this assumes zero-porosity gradient at the depth; these choices do not affect the calculation 
@@ -2710,16 +2724,34 @@ endsubroutine coefs
 !**************************************************************************************************************************************
 
 !**************************************************************************************************************************************
+subroutine calc_aomprof(aomflxin,zsrin,nz,z,dz,aomch4)
+implicit none 
+integer(kind=4),intent(in)::nz
+real(kind=8),intent(in)::aomflxin,zsrin,z(nz),dz(nz)
+real(kind=8),intent(out)::aomch4(nz)
+real(kind=8) aomch4flx,zbsr,dzbsr
+real(kind=8),parameter:: pi = 4.0d0*datan(1.0d0)
+
+aomch4flx = aomflxin  ! in mol cm-2 yr-1
+zbsr = zsrin*1d2       ! converging from m to cm
+dzbsr = zbsr * 0.1d0             ! assuming dz is 0.1 times the bottom depth of SRZ
+aomch4(:) = aomch4flx/dzbsr/sqrt(2d0*pi)*exp(-0.5d0*((z(:)-zbsr)/dzbsr)**2d0)  ! in mol cm-3 yr-1
+print *, sum(aomch4(:)*dz(:)) 
+
+endsubroutine calc_aomprof
+!**************************************************************************************************************************************
+
+!**************************************************************************************************************************************
 subroutine recordprofile(  &
     itrec,file_tmp,workdir,nz,z,age,pt,rho,cc,ccx,dic,dicx,alk,alkx,co3,co3x,nspcc,msed,wi,co3sat,rcc  &
     ,pro,o2x,oxco2,anco2,om,mom,mcc,d13c_ocni,d18o_ocni,up,dwn,cnr,adf,ptx,w,frt,prox,omx,d13c_blk,d18o_blk  &
-    ,d17o_blk,d14c_age,capd47,time_blk,poro  &
+    ,d17o_blk,d14c_age,capd47,time_blk,poro,aomch4  &
     ,nspdic   &
     ,d13c_pw,d18o_pw,d17o_pw,d14c_pw,capd47_pw  &
     )
 implicit none 
 integer(kind=4),intent(in):: itrec,file_tmp,nz,nspcc,nspdic
-real(kind=8),dimension(nz),intent(in)::z,age,pt,rho,alk,alkx,pro,o2x,oxco2,anco2,om,up,dwn,cnr,adf
+real(kind=8),dimension(nz),intent(in)::z,age,pt,rho,alk,alkx,pro,o2x,oxco2,anco2,om,up,dwn,cnr,adf,aomch4
 real(kind=8),dimension(nz),intent(in)::ptx,w,frt,prox,omx,d13c_blk,d18o_blk,d17o_blk,d14c_age,capd47,time_blk,poro
 real(kind=8),dimension(nz,nspcc),intent(in)::cc,ccx,rcc
 real(kind=8),dimension(nz,nspdic),intent(in)::dic,dicx,co3,co3x
@@ -2754,7 +2786,7 @@ if (itrec==0) then
 
     open(unit=file_tmp,file=trim(adjustl(workdir))//'omx-'//trim(adjustl(dumchr(1)))//'.txt',action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),om(iz)*mom/2.5d0*100d0
+        write(file_tmp,*) z(iz),age(iz),om(iz)*mom/2.5d0*100d0,aomch4(iz)
     enddo
     close(file_tmp)
         
@@ -2802,7 +2834,7 @@ else
     open(unit=file_tmp,file=trim(adjustl(workdir))//'omx-'//trim(adjustl(dumchr(1)))//'.txt'  &
         ,action='write',status='replace') 
     do iz = 1,nz
-        write(file_tmp,*) z(iz),age(iz),omx(iz)*mom/rho(iz)*100d0
+        write(file_tmp,*) z(iz),age(iz),omx(iz)*mom/rho(iz)*100d0,aomch4(iz)
     enddo
     close(file_tmp)
 

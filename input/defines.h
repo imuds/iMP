@@ -2,7 +2,7 @@
 #define test 
 
 ! reading input data
-#define reading 
+! #define reading 
 
 ! testing 5kyr signal change event 
 ! #define biotest
@@ -12,6 +12,9 @@
 
 ! without signal tracking 
 ! #define sense
+
+! run only to reach steady state
+#define finss
 
 ! using method2 to track signals (default 42 species)
 ! #define track2 
@@ -82,14 +85,17 @@
 ! allow precipitation 
 #define precip
 
-! no 14c radio-decay 
-! #define noradio
+! no 14c radio-decay (when calculation domain becomes deep, 14C calculation causes difficulty in convergence due to very low conc.)
+#define noradio
 
 ! consider diffusion boundary layer 
 ! #define DBL
 
 ! consider DIC and ALK fluxes from hydrate model
-! #define methane 
+! methane == 0: if not define methane at all, 0 is assigned as default, which assume no aom
+! methane == 1: use aom rate profile directly from hydrate model
+! methane == 2: calculate aom rate profile based on aom flux and depth of SMT (sulfate-methane transition) and Gaussian distribution
+! #define methane 2
 
 ! stepwise warm up (first reaching steady state) (better to use when allowing precipitation?)
 #define stepwarm

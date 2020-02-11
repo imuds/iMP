@@ -13,10 +13,12 @@ par_names = [
     ,'dic'                  # DIC in uM
     ,'alk'                  # ALK in ueqM
     ,'o2'                   # O2 in uM
-    ,'ccflx'                # CaCO3 rain flux in umol cm-2 yr-1
-    ,'omflx'                # OM rain flux in umol cm-2 yr-1
-    ,'detflx'               # Detrial rain flux in ug cm-2 yr-1
+    ,'ccflx'                # CaCO3 rain flux in mol cm-2 yr-1
+    ,'omflx'                # OM rain flux in mol cm-2 yr-1
+    ,'detflx'               # Detrial rain flux in g cm-2 yr-1
     ,'flxfin'               # fraction of fine species (0-1; used only when two size species are simulated)
+    ,'aomflx'               # AOM flux in mol cm-2 yr-1
+    ,'zsr'                  # sulfate reduction depth in m
     ,'d13c'                 # delta-13C in ocean (you name different proxy if you want)
     ,'d18o'                 # delta-18O in ocean  (you name different proxy if you want)
     ,'capd47'               # Cap-Delta 47 in ocean (used only simulating clumped isotopes)
@@ -42,12 +44,16 @@ par_values_base = [
     ,3.5
     ,2211.
     ,2285.
-    ,165.
-    ,12e-6
-    ,12e-6*0.7
-    ,12e-6*1./9.*100.
-    ,0.5
-    ,0.  
+    ,165.  #O2
+    # ,165.*0.01  #O2
+    ,12e-6  
+    ,12e-6*0.7  #OM
+    # ,12e-6*1.5 #OM 
+    ,12e-6*1./9.*100.  # detrital 
+    ,0.5  # fraction fine 
+    ,2e-6  # AOM 
+    ,10.   # bottom of SRZ 
+    ,0.    
     ,0.   
     ,0.   
     ,0.   
@@ -62,8 +68,14 @@ par_values_spec = [
     ,[]  # sal
     # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[3.5,3.5,4.5,4.5,3.5,3.5]]  #dep 
     # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[3.5,3.5,5.0,5.0,3.5,3.5]]  #dep 
-    ,[[time_start,time_end],[3.5,3.5]]  #dep 
-    # ,[[time_start,time_end],[4.5,4.5]]  #dep 
+    # ,[[time_start,time_end],[0.2,0.2]]  #dep 
+    # ,[[time_start,time_end],[0.5,0.5]]  #dep 
+    # ,[[time_start,time_end],[1.0,1.0]]  #dep 
+    # ,[[time_start,time_end],[2.0,2.0]]  #dep 
+    # ,[[time_start,time_end],[3.0,3.0]]  #dep 
+    # ,[[time_start,time_end],[3.5,3.5]]  #dep 
+    ,[[time_start,time_end],[4.5,4.5]]  #dep 
+    # ,[[time_start,time_end],[4.6,4.6]]  #dep 
     # ,[[time_start,time_end],[5.0,5.0]]  #dep 
     ,[]  # dic
     ,[]  # alk
@@ -73,6 +85,8 @@ par_values_spec = [
     ,[]  # detflx
     # ,[[time_start,40e3,65e3,90e3,time_end],[0.5,0.5,0.1,0.5,0.5]]  # flxfin
     ,[]  # flxfin
+    ,[]  # AOM
+    ,[]  # bottom of SRZ
     ,[[time_start,40e3,45e3,85e3,90e3,time_end],[2.,2.,-1.,-1.,2.,2.]]  # d13c
     # ,[[time_start,40e3,45e3,time_end],[2.,2.,-1.,-1.]]  # d13c
     ,[[time_start,40e3,65e3,90e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
