@@ -1,6 +1,10 @@
 
 !**************************************************************************************************************************************
-subroutine caco3(ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin) 
+subroutine caco3(  &
+    ccflxi,om2cc,depi2,dti2,filechr,oxonly,biotmode,detflxi  &
+    ,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin,locin  &
+    ,d13c_ocn_in,d13c_caco3_in,d13c_poc_in  &
+    ) 
 ! a signal tracking diagenesis
 ! v5.7 trying to implement aqueous DIC isotopologues
 implicit none 
@@ -59,8 +63,10 @@ parameter(nspdic=nspdicinput*2)
 parameter(nspdic=nspdicinput)
 #endif 
 
-real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin
+real(kind=8),intent(inout)::ccflxi,om2cc,depi2,dti2,detflxi,tempi,o2i2,dici2,alki2,co3sati,sali,aomflxin,zsrin  &
+    ,d13c_ocn_in,d13c_caco3_in,d13c_poc_in
 character*555,intent(in)::filechr,biotmode
+character*7,intent(in)::locin
 logical,intent(in)::oxonly
 
 integer(kind=4),parameter :: nsig = 2
@@ -91,6 +97,7 @@ real(kind=8) :: r17o_smow = 0.0003799d0 ! Fry (2006), cf., 0.000373 by Hoef (201
 real(kind=8) :: r13c_pdb = 0.011180d0 ! Fry (2006)
 real(kind=8) :: d13c_om = -25d0  ! e.g., Ridgwell and Arndt (2014) (probably vs PDB)
 real(kind=8) :: d13c_ch4 = -60d0 ! e.g., Zeebe (2007) (probably vs PDB)
+real(kind=8) :: d13c_caco3 = 0d0 ! Only temporarily given here; TBD
 real(kind=8) :: d18o_o2 = 23.5d0 ! Kroopnick and Craig (1972) vs SMOW; 18O16O/16O16O
 real(kind=8) :: d18o_so4 = 9.5d0 ! Longinelli and Craig (1967) vs SMOW
 ! real(kind=8) :: c14age_cc = 10d3   ! 14C-age of raining caco3
@@ -292,6 +299,9 @@ real(kind=8)::read_data(100,n_aom),interp_data(n_interp,nz),t_data(nz),p_data(n_
 real(kind=8)::dt_dt = 1d-1
 real(kind=8)::dicxx(nz,nspdic),alkxx(nz),ccxx(nz,nspcc),error_ccsys 
 integer(kind=4)::itr_ccsys
+character*3::lonch,latch
+character*100::nproc
+integer(kind=4)::lonint,latint
 
 #ifdef allnobio 
 nobio = .true.
@@ -305,7 +315,26 @@ labs = .true.
 anoxic = .false. 
 #endif
 
+lonch = locin(1:3)
+latch = locin(5:7)
+
+read(lonch,*) lonint
+read(latch,*) latint
+! print *,'lat=',latint,'lon=',lonint
+! pause
+
+#if defined proc
+write(nproc,*) proc
+#else
+write(nproc,*) '0'
+#endif
+nproc=adjustl(nproc)
+! print*,nproc
+! pause
+
 #ifdef reading 
+lonint = 0
+latint = 0
 open(unit=file_tmp,file='../input/imp_input.in',status='old',action='read')
 d13c_ocni = -1d100
 d13c_ocnf = 1d100
@@ -477,6 +506,11 @@ o2i = o2i2
 alki = alki2
 dici = dici2
 sal = sali
+d13c_caco3 = d13c_caco3_in
+d13c_ocn = d13c_ocn_in
+d13c_om = d13c_poc_in
+! print*,d13c_caco3,d13c_ocn,d13c_om
+! pause
 #endif    
         
 !!!!!!!!! specific boundary conditions if needed
@@ -851,6 +885,7 @@ do
         d13c_ocn,d18o_ocn,ccflx,d18o_sp,d13c_sp,cntsp  &
         ,time,time_spn,time_trs,time_aft,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,nspcc,ccflxi,it,flxfini,flxfinf  &
         ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs,time_min,time_max  &
+        ,d13c_caco3,d13c_ocn_in  &
         ) 
     call bdcnd(   &
         time,dep,time_spn,time_trs,time_aft,depi,depf  &
@@ -1501,17 +1536,17 @@ do
 
     ! calculation of fluxes relevant to caco3 and co2 system
     call calcflxcaco3sys(  &
-         cctflx,ccflx,ccdis,ccdif,ccadv,ccrain,ccres,alktflx,alkdis,alkdif,alkdec,alkres & ! output
-         ,dictflx,dicdis,dicdif,dicres,dicdec   & ! output
-         ,dw & ! inoutput
-         ,nspcc,ccx,cc,dt,dz,rcc,adf,up,dwn,cnr,w,dif_alk,dif_dic,dic,dicx,alk,alkx,oxco2,anco2,trans    & ! input
-         ,turbo2,labs,nonlocal,sporof,it,nz,poro,sporo        & ! input
-         ,dici,alki,file_err,mvcc,tol,flg_500  &
-         ,ccrad,alkrad,deccc  &  
-         ,nspdic,respoxiso,respaniso  & 
-         ,dicrad,decdic   &
+        cctflx,ccflx,ccdis,ccdif,ccadv,ccrain,ccres,alktflx,alkdis,alkdif,alkdec,alkres & ! output
+        ,dictflx,dicdis,dicdif,dicres,dicdec   & ! output
+        ,dw & ! inoutput
+        ,nspcc,ccx,cc,dt,dz,rcc,adf,up,dwn,cnr,w,dif_alk,dif_dic,dic,dicx,alk,alkx,oxco2,anco2,trans    & ! input
+        ,turbo2,labs,nonlocal,sporof,it,nz,poro,sporo        & ! input
+        ,dici,alki,file_err,mvcc,tol,flg_500  &
+        ,ccrad,alkrad,deccc  &  
+        ,nspdic,respoxiso,respaniso  & 
+        ,dicrad,decdic   &
         ,aomch4,aomiso &
-         )
+        )
     if (sum(ccdis)/=0d0) then 
         ohmega_ave = ohmega_ave/sum(ccdis)
     else 
@@ -1546,7 +1581,7 @@ do
     err_f = maxval(abs(frt - 1d0))  ! new error in total vol. fraction (must be 1 in theory) 
     if (err_f < err_fx) err_f_min = err_f  ! recording minimum error 
 #if defined sense || defined finss
-    if (err_f < tol) exit  ! if total vol. fraction is near enough to 1, steady-state solution is obtained 
+    if (err_f < tol .or. time > ztot/w(izml)) exit  ! if total vol. fraction is near enough to 1, steady-state solution is obtained 
 #endif 
     if (.not. warmup_done.and.err_f < tol_ss) then 
         warmup_done = .true.
@@ -1875,6 +1910,7 @@ senseID = filechr
 ! recording end results for lysoclines and caco3 burial fluxes
 call resrec(  &
     anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID,ohmega_ave  &
+    ,lonint,latint,d13c_blk,nproc  &
     )
 
 endsubroutine caco3
@@ -1996,18 +2032,25 @@ endsubroutine getinput
 !**************************************************************************************************************************************
 
 !**************************************************************************************************************************************
-subroutine getinput_v2(ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr,detflxi,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin)
+subroutine getinput_v2(  &
+    ccflxi,om2cc,dti,filechr,dep,oxonly,biotchr,detflxi  &
+    ,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin,locin  &
+    ,d13c_ocn_in,d13c_caco3_in,d13c_poc_in &
+    )
 implicit none 
 integer(kind=4) narg,ia
 character*555 arg
-real(kind=8),intent(out)::ccflxi,om2cc,dti,dep,detflxi,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin
+real(kind=8),intent(out)::ccflxi,om2cc,dti,dep,detflxi,tempi,o2i,alki,dici,co3sati,sali,aomflxin,zsrin  &
+    ,d13c_ocn_in,d13c_caco3_in,d13c_poc_in
 logical,intent(out)::oxonly
 character*555,intent(out):: filechr,biotchr
+character*7,intent(out):: locin 
 ! local variables
 real(kind=8)::keqcc,cai=10.3d-3
 real(kind=8)::calceqcc
 logical::get_co3sat = .false. 
 logical::get_detflx = .false. 
+logical::get_d13caco3 = .false. 
 
 ! default values
 ccflxi = 12e-6
@@ -2021,9 +2064,12 @@ alki = 2285d0
 sali = 35d0
 aomflxin = 0d0
 zsrin = 1d5
+d13c_ocn_in = 0d0
+d13c_poc_in = -25d0
 filechr = ''
 oxonly = .false.
 biotchr = 'fickian'
+locin = '000-000'
 
 ! get varuables at run time if specified
 narg = iargc()
@@ -2032,7 +2078,7 @@ do ia = 1, narg,2
     select case(trim(arg))
         case('cc','CC','Cc')
             call getarg(ia+1,arg)
-            read(arg,*)ccflxi   ! reading caco3 total rain flux
+            read(arg,*)ccflxi   ! reading caco3 total rain flux in mol cm-2 yr-1
         case('rr','RR','Rr')
             call getarg(ia+1,arg)
             read(arg,*)om2cc  ! reading om/caco3 rain ratio 
@@ -2068,6 +2114,16 @@ do ia = 1, narg,2
             call getarg(ia+1,arg)
             read(arg,*)co3sati  ! reading co3sat conc. in M***  
             get_co3sat = .true.
+        case('d13ocn','D13OCN','D13ocn')
+            call getarg(ia+1,arg)
+            read(arg,*)d13c_ocn_in  ! d13c in ocean in o/oo
+        case('d13caco3','D13CACO3','D13caco3')
+            call getarg(ia+1,arg)
+            read(arg,*)d13c_caco3_in  ! d13c in caco3 in o/oo
+            get_d13caco3 = .true.
+        case('d13poc','D13POC','D13poc')
+            call getarg(ia+1,arg)
+            read(arg,*)d13c_poc_in  ! d13c in caco3 in o/oo
         case('dt','DT','Dt')
             call getarg(ia+1,arg)
             read(arg,*)dti   ! reading time step used in calculation 
@@ -2080,6 +2136,9 @@ do ia = 1, narg,2
         case('biot','BIOT','Biot')
             call getarg(ia+1,arg)
             read(arg,*)biotchr  ! character to define styles of bioturbation
+        case('loc','LOC','Loc')
+            call getarg(ia+1,arg)
+            read(arg,*)locin  ! character to define location in a global map
     end select
 enddo
 
@@ -2090,6 +2149,9 @@ if (.not. get_co3sat) then
 endif
 ! default detrital rain flux to realize 90% of mass flux becomes inorganic C in g cm-2 yr-1
 if (.not.get_detflx) detflxi = (1d0/9d0)*ccflxi*100d0 
+
+! default d13c in caco3
+if (.not.get_d13caco3) d13c_caco3_in = d13c_ocn_in
 
 endsubroutine getinput_v2 
 !**************************************************************************************************************************************
@@ -2157,11 +2219,15 @@ if (any(labs)) workdir = trim(adjustl(workdir))//'_labs'
 if (any(turbo2)) workdir = trim(adjustl(workdir))//'_turbo2'
 if (any(nobio)) workdir = trim(adjustl(workdir))//'_nobio'
 workdir = trim(adjustl(workdir))//'/'
-workdir = trim(adjustl(workdir))//'cc-'//trim(adjustl(chr(1,4)))//'_rr-'//trim(adjustl(chr(2,4)))  &
+workdir = trim(adjustl(workdir))//'cc-'//trim(adjustl(chr(1,4)))//'_rr-'//trim(adjustl(chr(2,4)))  
 #ifdef sense
-    //'_dep-'//trim(adjustl(chr(3,4)))
+workdir = trim(adjustl(workdir))//'_dep-'//trim(adjustl(chr(3,4)))
 #else
-    //'_'//trim(adjustl(filechr))
+if (len(trim(adjustl(filechr))) == 0 ) then 
+    workdir = trim(adjustl(workdir))//'_dep-'//trim(adjustl(chr(3,4)))
+else 
+    workdir = trim(adjustl(workdir))//'_'//trim(adjustl(filechr))
+endif 
 #endif
 ! workdir = trim(adjustl(workdir))//'-'//trim(adjustl(dumchr(1)))  ! adding date
 #ifndef nonrec
@@ -2881,12 +2947,13 @@ subroutine signal_flx(  &
     d13c_ocn,d18o_ocn,ccflx,d18o_sp,d13c_sp,cntsp  &
     ,time,time_spn,time_trs,time_aft,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,nspcc,ccflxi,it,flxfini,flxfinf  &
     ,r14ci,capd47_ocni,capd47_ocnf,capd47_ocn,r13c_pdb,r18o_pdb,r17o_pdb,tol,nt_trs,time_min,time_max   &
+    ,d13c_caco3,d13c_ocn_in  &
     ) 
 implicit none 
 integer(kind=4),intent(in)::nspcc,it,nt_trs
 integer(kind=4),intent(inout)::cntsp
 real(kind=8),intent(in)::time,time_spn,time_trs,time_aft,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf,ccflxi
-real(kind=8),intent(in)::flxfini,flxfinf
+real(kind=8),intent(in)::flxfini,flxfinf,d13c_caco3,d13c_ocn_in
 real(kind=8),intent(out)::d13c_ocn,d18o_ocn,ccflx(nspcc)
 real(kind=8),dimension(nspcc),intent(inout)::d18o_sp,d13c_sp
 real(kind=8) flxfin
@@ -3054,6 +3121,10 @@ endif
 
 ! only when directly tracking isotopes 
 #ifdef isotrack
+! when running to steady state 
+#ifdef finss 
+d13c_ocn = d13c_caco3
+#endif 
 r13c_ocn = d2r(d13c_ocn,r13c_pdb) 
 r12c_ocn = 1d0
 r14c_ocn = r14ci 
@@ -3129,6 +3200,12 @@ flxfrc(1:nspcc/ifsp) = flxfrc2(1:nspcc/ifsp)!/sum(flxfrc2)
 
 ccflx = 0d0
 ccflx(1:nspcc/ifsp) = flxfrc(1:nspcc/ifsp)*ccflxi
+
+! when running to steady state 
+#ifdef finss 
+d13c_ocn = d13c_ocn_in
+#endif 
+
 #endif 
 
 #ifdef timetrack
@@ -6281,14 +6358,16 @@ endsubroutine closefiles
 !**************************************************************************************************************************************
 subroutine resrec(  &
     anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID,ohmega_ave  &
+    ,lonint,latint,d13c_blk,nproc  &
     )
 implicit none
-integer(kind=4),intent(in)::nspcc,file_tmp,nz,izml
+integer(kind=4),intent(in)::nspcc,file_tmp,nz,izml,lonint,latint
 real(kind=8),intent(in)::co3i,co3sat,mcc(nspcc),ohmega_ave
 real(kind=8),dimension(nz,nspcc),intent(in)::ccx
-real(kind=8),dimension(nz),intent(in)::rho,frt
+real(kind=8),dimension(nz),intent(in)::rho,frt,d13c_blk
 real(kind=8),dimension(nspcc),intent(in)::ccadv
 character*255,intent(inout)::senseID
+character*100,intent(in)::nproc
 logical,intent(in)::anoxic
 logical,dimension(nspcc+2),intent(in)::labs,turbo2,nobio
 character*25,intent(in)::chr(3,4)
@@ -6331,6 +6410,14 @@ open(unit=file_tmp,file=trim(adjustl(workdir))//'ccbur_sense_'// &
     'cc-'//trim(adjustl(chr(1,4)))//'_rr-'//trim(adjustl(chr(2,4)))  &
     //'.res',action='write',status='unknown',access='append') 
 write(file_tmp,*) 1d6*(co3i*1d3-co3sat), 1d6*sum(ccadv),dt,it,time 
+close(file_tmp)
+
+open(unit=file_tmp,file=trim(adjustl(workdir))//'CaCO3_data_'//trim(adjustl(nproc))//'.res'  &
+    ,action='write',status='unknown',access='append') 
+write(file_tmp,*) lonint, latint  &
+    ,sum(ccx(1,:)*mcc(:))/rho(1)*100d0, d13c_blk(1)  &
+    ,sum(ccx(izml,:)*mcc(:))/rho(izml)*100d0, d13c_blk(izml)  &
+    ,sum(ccx(nz,:)*mcc(:))/rho(nz)*100d0, d13c_blk(nz)  
 close(file_tmp)
 
 endsubroutine resrec
