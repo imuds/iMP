@@ -35,10 +35,13 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     homedir = erase(pwd,'iMP\MATLAB');
     profdir = strcat(homedir,'imp_output/matlab/profiles/');
     resdir = strcat(homedir,'imp_output/matlab/res/');
+    run_ser_id = folder;
     if (oxonly_in)
         run_id = 'ox';
+        run_ser_id = strcat(run_ser_id,'/ox');
     else 
         run_id = 'oxanox';
+        run_ser_id = strcat(run_ser_id,'/oxanox');
     end 
     if (global_var.def_allnobio) 
         run_id = strcat(run_id,'_nobio');
@@ -782,7 +785,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     %********************************************************************************************************************************  ADDED-END
 
     % recording end results for lysoclines and caco3 burial fluxes
-    folder = strcat(resdir,run_id);
+    folder = strcat(resdir,run_ser_id);
     % mkdir(pad(profdir,runid));      % create output folder
     mkdir(folder);      % create output folder
     str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f.txt',folder,cc_rain_flx_in, rainratio_in);
