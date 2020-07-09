@@ -6,7 +6,7 @@
 
 run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, folder) 
 
-and example call would be: run_sig_iso_dtchange(6.0e-5, 1.5, 0.24, 1d8, true, './1207_test')
+and example call would be: run_sig_iso_dtchange(6.0e-5, 1.5, 0.24, 1d8, true, '1207_test')
 
 
 2) To run the lysocline experiments (i.e., Section 3.1 in the manuscript) execuet the functions in the file lysocline_exp.m
@@ -54,7 +54,7 @@ change properties in caco3_main:
 def_sense = true;       % without signal tracking
 set default boundary conditions as in Table 1
 execute as:
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, './2207_Fig3')
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig3')
 
 %%%%%% plotting of profiles is done with the python script matlab_caco3_profiles_sum_multi_v3.py using data from the following files:
 below XX =  total recording time of sediment profiles (e.g. 01 - 15)
@@ -105,7 +105,7 @@ def_alllabs = false;        	% all labs mixing
 def_allnonlocal = false; 	% ON if assuming non-local mixing (i.e., if labs or turbo2 is ON)
 
 Execute experiment (with default boundary conditions) by 
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, './2207_Fig8')
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig8')
 
 %%%%% plotting of results is done with the python script matlab_caco3_signals.py using data from the following files 
 matlab_rectime.txt	% includes the year when sediment profiles are recorded
@@ -126,7 +126,7 @@ change the maximum depth in the actual code in run_sig_iso_dtchange() line 25, e
 dep_max = 5.0d0;    %   max depth to be changed to during the experiment
 
 Execute experiment (with default boundary conditions) by 
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, './2207_Fig10')
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig10')
 
 %%%%% plotting of results is done - as for Fig. 8 - with the python script matlab_caco3_signals.py using data from the following files 
 matlab_rectime.txt	% includes the year when sediment profiles are recorded

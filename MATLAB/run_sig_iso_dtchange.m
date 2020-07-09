@@ -9,7 +9,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 %   dep_in              :   water depth [km] (set dep_max, below, to different depth for dissolution experiment)
 %   dt_in               :   time step to start simulation with [yr]
 %   oxonly_in           :   select oxic only model for OM degradation [true/false]
-%   folder              :   path to output folder, will be created 
+%   folder              :   path to output folder, will be created  % now this should be simulaiton name?  
 
     % Example run: 
     % run_sig_iso_dtchange(6.0e-5, 1.5, 0.24, 1d8, true, './1207_test')
@@ -24,12 +24,39 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     
     dep_max = 5.0d0;    %   max depth to be changed to during the experiment
 %    folder = './0_test';
-    mkdir(folder);      % create output folder
+    % mkdir(folder);      % create output folder
     interval =10;       % if def_nondisp = false: choose a value between 1 to nz; om depth profile is shown with this interval; e.g., if inteval = 1, conc. at all depths are shown
     % e.g., if interval = 10, om conc. at nz/10 depths are shown
     flag_steadystate = false;
     % initialize/define global properties/variables
     global_var = caco3_main;
+    
+    homedir = erase(pwd,'MATLAB');
+    homedir = erase(pwd,'iMP\MATLAB');
+    profdir = strcat(homedir,'imp_output/matlab/profiles/');
+    resdir = strcat(homedir,'imp_output/matlab/res/');
+    if (oxonly_in)
+        run_id = 'ox';
+    else 
+        run_id = 'oxanox';
+    end 
+    if (global_var.def_allnobio) 
+        run_id = strcat(run_id,'_nobio');
+    elseif (global_var.def_allturbo2) 
+        run_id = strcat(run_id,'_turbo2');
+    elseif (global_var.def_alllabs) 
+        run_id = strcat(run_id,'_labs');
+    end 
+    run_id = strcat(run_id,'/');
+    run_id = strcat(run_id,'cc-',num2str(cc_rain_flx_in,2),'_rr-',num2str(rainratio_in,2));
+    if (global_var.def_sense) 
+        run_id = strcat(run_id,'_dep-',num2str(dep_in,2));
+    end 
+    run_id = strcat(run_id,'-',folder);
+    folder = strcat(profdir,run_id);
+    disp(folder)
+    % mkdir(pad(profdir,runid));      % create output folder
+    mkdir(folder);      % create output folder
 
     % initialize the boundary conditions
     [bc, global_var] = caco3_main.caco3_set_boundary_cond(global_var);
@@ -59,15 +86,15 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
     % open files for output signal at 3 different depths
 
-    file_sigmly = sprintf('%s/matlab_sigmly.txt', folder);
+    file_sigmly = sprintf('%s/sigmly.txt', folder);
     file_sigmlyid = fopen(file_sigmly,'wt');
-    file_sigmlyd = sprintf('%s/matlab_sigmlyd.txt', folder);
+    file_sigmlyd = sprintf('%s/sigmlyd.txt', folder);
     file_sigmlydid = fopen(file_sigmlyd,'wt');
-    file_sigbtm = sprintf('%s/matlab_sigbtm.txt', folder);
+    file_sigbtm = sprintf('%s/sigbtm.txt', folder);
     file_sigbtmid = fopen(file_sigbtm,'wt');
-    file_bound = sprintf('%s/matlab_bound.txt', folder);
+    file_bound = sprintf('%s/bound.txt', folder);
     file_boundid = fopen(file_bound,'wt');
-    file_frac = sprintf('%s/matlab_frac.txt', folder);
+    file_frac = sprintf('%s/frac.txt', folder);
     file_fracid = fopen(file_frac,'wt');
 
 
@@ -755,18 +782,23 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     %********************************************************************************************************************************  ADDED-END
 
     % recording end results for lysoclines and caco3 burial fluxes
-    if(oxonly_in)
-        sprintf('%s/matlab_frac.txt', folder);
+    folder = strcat(resdir,run_id);
+    % mkdir(pad(profdir,runid));      % create output folder
+    mkdir(folder);      % create output folder
+    str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f.txt',folder,cc_rain_flx_in, rainratio_in);
+    str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f.txt',folder,cc_rain_flx_in, rainratio_in);
+    % if(oxonly_in)
+        % sprintf('%s/matlab_frac.txt', folder);
 %         str_lys = sprintf('./1207_test/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',cc_rain_flx_in, rainratio_in);
 %         str_ccbur = sprintf('./1207_test/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',cc_rain_flx_in, rainratio_in);
-        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
-        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
-    else
+        % str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
+        % str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxonly.txt',folder,cc_rain_flx_in, rainratio_in);
+    % else
 %         str_lys = sprintf('./1207_test/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',cc_rain_flx_in, rainratio_in);
 %         str_ccbur = sprintf('./1207_test/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',cc_rain_flx_in, rainratio_in);
-        str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
-        str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
-    end
+        % str_lys = sprintf('%s/lys_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
+        % str_ccbur = sprintf('%s/ccbur_sense_cc-%2.1e_rr-%.2f_oxanox.txt',folder, cc_rain_flx_in, rainratio_in);
+    % end
 
     file_tmp = fopen(str_lys,'at+');    % the 4th column is the plotted CaCO3 wt%!
     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', 1d6*(co3i*1d3-co3sat), sum(ccx(1,:))*global_var.mcc/rho(1)*100d0, frt(1), ...
