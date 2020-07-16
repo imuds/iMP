@@ -1,7 +1,17 @@
 import glob
 import os
 import numpy as np 
-process=4
+print ''
+print '*** just press [enter] to choose default parameter ***'
+print ''
+process= raw_input('Enter paralellized process number [default= 4]: ') 
+runtitle= raw_input('Enter simulation name [default= test_lys]: ') 
+if len(process)==0:
+    process=4
+else:
+    process= eval(process)
+if len(runtitle)==0:
+    runtitle = 'test_lys'
 shellloc = os.path.dirname(os.path.abspath(__file__)) 
 seriesname='prun'
 filelist = glob.glob(shellloc+'/'+seriesname+'*.sh')
@@ -48,7 +58,8 @@ for i in range(nz):
                            +' rr '+str(rrlist[k])\
                            +' dep '+str((i+1.)*6.0/(1.0*nz))  \
                            +' dt 100000000.'  \
-                           +' ox '+exefile
+                           +' ox '+exefile  \
+                           +' fl '+runtitle
                 line = runplace \
                            +'\n'
                 f.write(line)

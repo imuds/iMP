@@ -1904,9 +1904,9 @@ close(file_input)
 #endif 
 
 senseID = ''
-#ifdef sense
+! #ifdef sense
 senseID = filechr
-#endif 
+! #endif 
 ! recording end results for lysoclines and caco3 burial fluxes
 call resrec(  &
     anoxic,nspcc,labs,turbo2,nobio,co3i,co3sat,mcc,ccx,nz,rho,frt,ccadv,file_tmp,izml,chr,dt,it,time,senseID,ohmega_ave  &
@@ -2066,7 +2066,7 @@ aomflxin = 0d0
 zsrin = 1d5
 d13c_ocn_in = 0d0
 d13c_poc_in = -25d0
-filechr = ''
+filechr = 'test'
 oxonly = .false.
 biotchr = 'fickian'
 locin = '000-000'
@@ -2177,6 +2177,7 @@ logical,intent(in)::anoxic
 logical,dimension(nspcc+2),intent(in)::labs,turbo2,nobio
 real(kind=8) dumreal
 integer(kind=4) ia,isp
+integer(kind=4) getcwd, status
 character*25 dumchr(3),chr_tmp
 character*25,intent(out)::chr(3,4)
 
@@ -2204,12 +2205,17 @@ print'(6A)','ccflx','om2cc','dep:',(chr(ia,4),ia=1,3)
 ! pause
 !! FILES !!!!!!!!!
 ! workdir = 'C:/Users/YK/Desktop/Sed_res/'
-workdir = '../../'
-workdir = trim(adjustl(workdir))//'imp_output/fortran/profiles/'
-workdir = trim(adjustl(workdir))//'multi/'
+! workdir = '../../'
+status = getcwd( workdir)
+if ( status .ne. 0 ) stop 'getcwd: error'
+workdir(index(workdir,'iMP/Fortran'):) = ''
+workdir = trim(adjustl(workdir))//'imp_output/fortran/'
 #ifdef test 
 workdir = trim(adjustl(workdir))//'test/'
+#else 
+workdir = trim(adjustl(workdir))//trim(adjustl(filechr))//'/'
 #endif
+workdir = trim(adjustl(workdir))//'profiles/'
 if (.not. anoxic) then 
     workdir = trim(adjustl(workdir))//'ox'
 else 
@@ -2220,15 +2226,15 @@ if (any(turbo2)) workdir = trim(adjustl(workdir))//'_turbo2'
 if (any(nobio)) workdir = trim(adjustl(workdir))//'_nobio'
 workdir = trim(adjustl(workdir))//'/'
 workdir = trim(adjustl(workdir))//'cc-'//trim(adjustl(chr(1,4)))//'_rr-'//trim(adjustl(chr(2,4)))  
-#ifdef sense
+! #ifdef sense
 workdir = trim(adjustl(workdir))//'_dep-'//trim(adjustl(chr(3,4)))
-#else
-if (len(trim(adjustl(filechr))) == 0 ) then 
-    workdir = trim(adjustl(workdir))//'_dep-'//trim(adjustl(chr(3,4)))
-else 
-    workdir = trim(adjustl(workdir))//'_'//trim(adjustl(filechr))
-endif 
-#endif
+! #else
+! if (len(trim(adjustl(filechr))) == 0 ) then 
+    ! workdir = trim(adjustl(workdir))//'_dep-'//trim(adjustl(chr(3,4)))
+! else 
+    ! workdir = trim(adjustl(workdir))//'_'//trim(adjustl(filechr))
+! endif 
+! #endif
 ! workdir = trim(adjustl(workdir))//'-'//trim(adjustl(dumchr(1)))  ! adding date
 #ifndef nonrec
 call system ('mkdir -p '//trim(adjustl(workdir)))
@@ -4217,11 +4223,11 @@ do isp=1,nspcc
         *merge(1d0,0d0,(co3(:,1)*1d3/co3sat(isp))-1d0>0d0)*prec_exp  
     ! calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
     drcc_dcc(:,isp,isp) = diss(:)*kcc(:,isp)*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**ncc  &
-        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)
+        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)  &
         -prec(:)*kcc(:,isp)*abs(co3x(:,1)*1d3/co3sat(isp)-1d0)**ncc  &
         *merge(1d0,0d0,(co3x(:,1)*1d3/co3sat(isp))-1d0>0d0)*(1d0-prec_exp)  
     drcc_dco3(:,isp) = diss(:)*kcc(:,isp)*ccx(:,isp)*ncc*abs(1d0-co3x(:,1)*1d3/co3sat(isp))**(ncc-1d0)  &
-        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)*(-1d3/co3sat(isp)) 
+        *merge(1d0,0d0,(1d0-co3x(:,1)*1d3/co3sat(isp))>0d0)*(-1d3/co3sat(isp)) &
         -prec(:)*kcc(:,isp)*ccx(:,isp)*ncc*abs(co3x(:,1)*1d3/co3sat(isp)-1d0)**(ncc-1d0)  &
         *merge(1d0,0d0,(co3x(:,1)*1d3/co3sat(isp))-1d0>0d0)*(1d3/co3sat(isp))*(1d0-prec_exp)
     case ('Subhus2017')  
@@ -6373,15 +6379,22 @@ logical,dimension(nspcc+2),intent(in)::labs,turbo2,nobio
 character*25,intent(in)::chr(3,4)
 real(kind=8),intent(in)::dt,time
 integer(kind=4),intent(in)::it
+integer(kind=4) status, getcwd
 character*1000::workdir
 
 ! workdir = 'C:/Users/YK/Desktop/Sed_res/'
-workdir = '../../'
-workdir = trim(adjustl(workdir))//'imp_output/fortran/res/'
-workdir = trim(adjustl(workdir))//'multi/'
+! workdir = '../../'
+status = getcwd( workdir)
+if ( status .ne. 0 ) stop 'getcwd: error'
+workdir(index(workdir,'iMP/Fortran'):) = ''
+workdir = trim(adjustl(workdir))//'imp_output/fortran/'
+! workdir = trim(adjustl(workdir))//'multi/'
 #ifdef test 
 workdir = trim(adjustl(workdir))//'test/'
+#else 
+workdir = trim(adjustl(workdir))//trim(adjustl(senseID))//'/'
 #endif
+workdir = trim(adjustl(workdir))//'res/'
 if (.not. anoxic) then 
     workdir = trim(adjustl(workdir))//'ox'
 else 
@@ -6391,9 +6404,9 @@ endif
 if (any(labs)) workdir = trim(adjustl(workdir))//'-labs'
 if (any(turbo2)) workdir = trim(adjustl(workdir))//'-turbo2'
 if (any(nobio)) workdir = trim(adjustl(workdir))//'-nobio'
-#ifdef sense 
-if (.not. trim(adjustl(senseID))=='') workdir = trim(adjustl(workdir))//'_'//trim(adjustl(senseID))
-#endif 
+! #ifdef sense 
+! if (.not. trim(adjustl(senseID))=='') workdir = trim(adjustl(workdir))//'_'//trim(adjustl(senseID))
+! #endif 
 workdir = trim(adjustl(workdir))//'/'
 
 call system ('mkdir -p '//trim(adjustl(workdir)))
