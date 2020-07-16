@@ -31,17 +31,15 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % initialize/define global properties/variables
     global_var = caco3_main;
     
-    homedir = erase(pwd,'MATLAB');
     homedir = erase(pwd,'iMP\MATLAB');
-    profdir = strcat(homedir,'imp_output/matlab/profiles/');
-    resdir = strcat(homedir,'imp_output/matlab/res/');
-    run_ser_id = folder;
+    homedir = strcat(homedir,'imp_output/matlab/');
+    homedir = strcat(homedir,folder);
+    profdir = strcat(homedir,'/profiles/');
+    resdir = strcat(homedir,'/res/');
     if (oxonly_in)
         run_id = 'ox';
-        run_ser_id = strcat(run_ser_id,'/ox');
     else 
         run_id = 'oxanox';
-        run_ser_id = strcat(run_ser_id,'/oxanox');
     end 
     if (global_var.def_allnobio) 
         run_id = strcat(run_id,'_nobio');
@@ -51,11 +49,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         run_id = strcat(run_id,'_labs');
     end 
     run_id = strcat(run_id,'/');
+    run_ser_id = run_id;
     run_id = strcat(run_id,'cc-',num2str(cc_rain_flx_in,2),'_rr-',num2str(rainratio_in,2));
-    if (global_var.def_sense) 
-        run_id = strcat(run_id,'_dep-',num2str(dep_in,2));
-    end 
-    run_id = strcat(run_id,'-',folder);
+    run_id = strcat(run_id,'_dep-',num2str(dep_in,2));
+    % run_id = strcat(run_id,'-',folder);
     folder = strcat(profdir,run_id);
     disp(folder)
     % mkdir(pad(profdir,runid));      % create output folder
@@ -76,7 +73,11 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         bc.anoxic = false;         % oxic only model of OM degradation by Emerson (1985)
     end
     global_var.def_oxonly = oxonly_in;
-
+    
+    co2chem = 'simple';
+    if(global_var.def_co2sys)
+        co2chem = 'co2sys';
+    end
 
     dw = zeros(1, global_var.nz);                       % burial rate change
     rcc = zeros(global_var.nz, global_var.nspcc);       % dissolution rate of caco3
@@ -177,8 +178,28 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
 
     % calling subroutine to calculate all aqueous co2 species and pH
-    [pro,co2,hco3,co3,infosbr] = caco3_therm.calcspecies(dic,alk,tmp,sal,dep);
-
+    if (co2chem=='simple')
+        [pro,co2,hco3,co3,infosbr] = caco3_therm.calcspecies(dic,alk,tmp,sal,dep);
+    elseif (co2chem=='co2sys')
+        pro = zeros(1,global_var.nz);
+        co2 = zeros(1,global_var.nz);
+        hco3 = zeros(1,global_var.nz);
+        co3 = zeros(1,global_var.nz);
+        omega = zeros(1,global_var.nz);
+        domega_dalk = zeros(1,global_var.nz);
+        domega_ddic = zeros(1,global_var.nz);
+        % call call_co2sys in call_co2sys.m: input alk and dic in mol/cm3, depth in km, temp in C, sal in g/kg 
+        [co2,hco3,co3,pro,omega,domega_ddic,domega_dalk] ...
+            = call_co2sys(global_var.nz,alk,dic,tmp,dep,sal);
+        % for iz=1:global_var.nz
+            % [co2(iz),hco3(iz),co3(iz),pro(iz),omega(iz),domega_ddic(iz),domega_dalk(iz)] ...
+                % = call_co2sys(1,alk(iz),dic(iz),tmp,dep,sal);
+            % fprintf ("%e  %e  %e  %e  %e  %e  %e\n" ...
+                % , co2x(iz),hco3x(iz),co3x(iz),prox(iz),omega(iz),domega_ddic(iz),domega_dalk(iz));
+        % end 
+        % return
+    end
+    
     % omx = bc.om;  % YK commented out
     % o2x = bc.o2;  % YK commented out
     omx = om;  % YK added
@@ -191,8 +212,14 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     co2x = co2;
     hco3x = hco3;
     co3x = co3;
+    prox = pro;
 
     co3i=co3(1);  % recording seawater conc. of co3
+    if (co2chem=='co2sys')        
+        cai = (0.02128d0/40.078d0) * sal/1.80655d0;
+        co3sat = co3i*1d3/omega(1);
+    end
+    % return
 
     time = 0d0;     % model time [yr]
     int_count = 1;  % integration count
@@ -541,7 +568,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                 caco3_main.calccaco3sys(ccx,dicx,alkx,rcc, dt, global_var.nspcc,dic,alk,dep,sal,tmp,mix_type.labs,mix_type.turbo2,mix_type.nonlocal, ...
                 global_var.sporo, global_var.sporoi, global_var.sporof, global_var.poro, dif_alk, dif_dic, ...
                 w, up, dwn, cnr, adf, global_var.dz, trans, cc, oxco2, anco2, co3sat, kcc, ccflx, global_var.ncc, global_var.nz, ...
-                global_var.tol, global_var.poroi, flg_500, global_var.fact, bc.alki,bc.dici, global_var.ccx_th, global_var.def_nonrec, global_var.def_sparse, global_var.def_showiter, global_var.def_sense);
+                global_var.tol, global_var.poroi, flg_500, global_var.fact, bc.alki,bc.dici, global_var.ccx_th, global_var.def_nonrec, global_var.def_sparse, global_var.def_showiter, global_var.def_sense,co2chem);
 
             if(flg_500)
                 dt = dt/10;
@@ -562,25 +589,39 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             end
             % calling subroutine to calculate all aqueous co2 species and pH
             % call calcspecies(dicx,alkx,temp,sal,dep,prox,co2x,hco3x,co3x,nz,infosbr)
-            [prox,co2x,hco3x,co3x,infosbr] = caco3_therm.calcspecies(dicx,alkx,tmp,sal,dep);
+            if (co2chem=='simple')
+                [prox,co2x,hco3x,co3x,infosbr] = caco3_therm.calcspecies(dicx,alkx,tmp,sal,dep);
 
-            if (infosbr==1)
-                dt = dt/10;
-                if(global_var.def_sense)
-                    % was in fortran go to 500
-                    ccx = cc;
-                    alkx = alk;
-                    dicx = dic;
-                    w = w_save ;
-                    % % determine factors for upwind scheme to represent burial advection
-                    [up, dwn, cnr, adf] = caco3_main.calcupwindscheme(w, global_var.nz);
-                    % in fortran  go to 600
-                    flag_smaller_dt = true;
-                    break       % jump out of loop and start with smaller dt (in fortran go to 600)
-                else
-                    msg = 'error after calcspecies after calccaco3sys - calcspecies, STOP.';
-                    error(msg)
+                if (infosbr==1)
+                    dt = dt/10;
+                    if(global_var.def_sense)
+                        % was in fortran go to 500
+                        ccx = cc;
+                        alkx = alk;
+                        dicx = dic;
+                        w = w_save ;
+                        % % determine factors for upwind scheme to represent burial advection
+                        [up, dwn, cnr, adf] = caco3_main.calcupwindscheme(w, global_var.nz);
+                        % in fortran  go to 600
+                        flag_smaller_dt = true;
+                        break       % jump out of loop and start with smaller dt (in fortran go to 600)
+                    else
+                        msg = 'error after calcspecies after calccaco3sys - calcspecies, STOP.';
+                        error(msg)
+                    end
                 end
+            
+            elseif (co2chem=='co2sys')
+                % call call_co2sys in call_co2sys.m: input alk and dic in mol/cm3, depth in km, temp in C, sal in g/kg 
+                [co2x,hco3x,co3x,prox,omega,domega_ddic,domega_dalk] ...
+                    = call_co2sys(global_var.nz,alkx,dicx,tmp,dep,sal);
+                % for iz=1:global_var.nz
+                    % [co2x(iz),hco3x(iz),co3x(iz),prox(iz),omega(iz),domega_ddic(iz),domega_dalk(iz)] ...
+                        % = call_co2sys(1,alkx(iz),dicx(iz),tmp,dep,sal);
+                    % fprintf ("%e  %e  %e  %e  %e  %e  %e\n" ...
+                        % , co2x(iz),hco3x(iz),co3x(iz),prox(iz),omega(iz),domega_ddic(iz),domega_dalk(iz));
+                % end 
+                % return
             end
 
             %          % calculation of fluxes relevant to caco3 and co2 system

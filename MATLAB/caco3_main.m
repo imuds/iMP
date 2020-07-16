@@ -79,6 +79,8 @@ classdef caco3_main
         def_mocsy = false;          % using mocsy for caco3 thermodynamics
         MOCSY_USE_PRECISION = 2;    % digit used for mocsy
         
+        def_co2sys = true;          % using CO2SYS for caco3 thermodynamics
+        
         def_recgrid = false;    % recording the grid to be used for making transition matrix in LABS
         
     end
@@ -944,7 +946,7 @@ classdef caco3_main
         
         function [ccx,dicx,alkx,rcc,dt, flg_500, itr] = calccaco3sys(ccx,dicx,alkx,rcc,dt, nspcc,dic,alk,dep,sal,tmp,labs,turbo2,nonlocal,sporo,sporoi,sporof,poro,dif_alk,dif_dic, ...
                 w,up,dwn,cnr,adf,dz,trans,cc,oxco2,anco2,co3sat,kcc,ccflx,ncc, nz, ...
-                tol, poroi, flg_500, fact, alki,dici,ccx_th , def_nonrec, def_sparse, def_showiter, def_sense)
+                tol, poroi, flg_500, fact, alki,dici,ccx_th , def_nonrec, def_sparse, def_showiter, def_sense, co2chem)
             
             %% ~~~~~~~~~~~~~~~~~~~~~~ CaCO3 solid, ALK and DIC  calculation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             
@@ -1025,57 +1027,80 @@ classdef caco3_main
             %            emx = zeros(1, nmx);            % emx is array of error
             %            ipiv = zeros(1, nmx);           % matrix used to solve linear system Ax = B
             dumx = zeros(nmx, nmx);          % amx corresponds to A in Ax = B, but ymx is also x when Ax = B is solved. emx is array of error
-            
-            
+                        
             %%% TODO: translate from here
             while(co2_error > tol)
                 amx = zeros(nmx, nmx);          % amx corresponds to A in Ax = B, but ymx is also x when Ax = B is solved. emx is array of error
                 ymx = zeros(1, nmx);            % ymx correspond to B in Ax = B, but ymx is also x when Ax = B is solved
                 
-                % calling subroutine from caco3_therm.f90 to calculate aqueous co2 species
-                % call calcspecies(dicx,alkx,temp,sal,dep,prox,co2x,hco3x,co3x,nz,infosbr)
-                [prox,co2x,hco3x,co3x,infosbr] = caco3_therm.calcspecies(dicx,alkx,tmp,sal,dep);
-                %                co3x = co3x';
-                if (infosbr==1) % which means error in calculation
-%                    dt=dt/10d0;    % DH: change outside subroutine
-                    if(def_sense)
-                        % go to 500
-                        flg_500= true;
-                        return
-                    else
-                        % in fortran stop
-                        msg = 'Error:infosbr==1 - error in calcspecies, STOP.';
-                        error(msg)
+                if (co2chem =='simple')
+                    % calling subroutine from caco3_therm.f90 to calculate aqueous co2 species
+                    % call calcspecies(dicx,alkx,temp,sal,dep,prox,co2x,hco3x,co3x,nz,infosbr)
+                    [prox,co2x,hco3x,co3x,infosbr] = caco3_therm.calcspecies(dicx,alkx,tmp,sal,dep);
+                    %                co3x = co3x';
+                    if (infosbr==1) % which means error in calculation
+    %                    dt=dt/10d0;    % DH: change outside subroutine
+                        if(def_sense)
+                            % go to 500
+                            flg_500= true;
+                            return
+                        else
+                            % in fortran stop
+                            msg = 'Error:infosbr==1 - error in calcspecies, STOP.';
+                            error(msg)
+                        end
                     end
-                end
-                % calling subroutine from caco3_therm.f90 to calculate derivatives of co3 wrt alk and dic
-                % call calcdevs(dicx,alkx,temp,sal,dep,nz,infosbr,dco3_dalk,dco3_ddic)
-                [dco3_dalk,dco3_ddic, infosbr] = caco3_therm.calcdevs(dicx,alkx,tmp,sal,dep);
-                if (infosbr==1) % which means error in calculation
-%                    dt=dt/10d0;    % DH: change outside subroutine
-                    if(def_sense)
-                        % go to 500
-                        flg_500= true;
-                        return
-                    else
-                        % in fortran stop
-                        msg = 'Error:infosbr==1 - error in calcdevs, STOP.';
-                        error(msg)
+                    % calling subroutine from caco3_therm.f90 to calculate derivatives of co3 wrt alk and dic
+                    % call calcdevs(dicx,alkx,temp,sal,dep,nz,infosbr,dco3_dalk,dco3_ddic)
+                    [dco3_dalk,dco3_ddic, infosbr] = caco3_therm.calcdevs(dicx,alkx,tmp,sal,dep);
+                    if (infosbr==1) % which means error in calculation
+    %                    dt=dt/10d0;    % DH: change outside subroutine
+                        if(def_sense)
+                            % go to 500
+                            flg_500= true;
+                            return
+                        else
+                            % in fortran stop
+                            msg = 'Error:infosbr==1 - error in calcdevs, STOP.';
+                            error(msg)
+                        end
                     end
-                end
+                    
+                    for isp=1:nspcc
+                        % calculation of dissolution rate for individual species
+                        rcc(:,isp) = kcc(:,isp).*ccx(:,isp).*abs(1d0-co3x(:).*1d3/co3sat).^(ncc).*((1d0-co3x(:)*1d3/co3sat)>0d0);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
+                        % calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk
+                        drcc_dcc(:,isp) = kcc(:,isp).*abs(1d0-co3x(:).*1d3/co3sat).^ncc.*((1d0-co3x(:)*1d3/co3sat)>0d0);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
+                        drcc_dco3(:,isp) = kcc(:,isp).*ccx(:,isp)*ncc.*abs(1d0-co3x(:)*1d3/co3sat).^(ncc-1d0) .*((1d0-co3x(:)*1d3/co3sat)>0d0) *(-1d3/co3sat);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
+                        drcc_ddic(:,isp) = drcc_dco3(:,isp).*dco3_ddic(:);
+                        drcc_dalk(:,isp) = drcc_dco3(:,isp).*dco3_dalk(:);
+                    end
+                    
+                elseif (co2chem =='co2sys')
+                    % call call_co2sys in call_co2sys.m: input alk and dic in mol/cm3, depth in km, temp in C, sal in g/kg 
+                    % for iz=1:nz
+                        % [co2x(iz),hco3x(iz),co3x(iz),prox(iz),omega(iz),domega_ddic(iz),domega_dalk(iz)] ...
+                            % = call_co2sys(1,alkx(iz),dicx(iz),tmp,dep,sal);
+                        % fprintf ("%e  %e  %e  %e  %e  %e  %e\n" ...
+                            % , co2x(iz),hco3x(iz),co3x(iz),prox(iz),omega(iz),domega_ddic(iz),domega_dalk(iz));
+                    % end 
+                    [co2x,hco3x,co3x,prox,omega,domega_ddic,domega_dalk] ...
+                        = call_co2sys(nz,alkx,dicx,tmp,dep,sal);
+                    
+                    for isp =1:nspcc
+                        % calculation of dissolution rate for individual species 
+                        rcc(:,isp) = kcc(:,isp).*ccx(:,isp).*abs(1d0-omega(:)).^(ncc).*((1d0-omega(:))>0d0); 
+                        % calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk 
+                        drcc_dcc(:,isp) = kcc(:,isp).*abs(1d0-omega(:)).^(ncc).*((1d0-omega(:))>0d0);
+                        drcc_domega(:,isp) = kcc(:,isp).*ccx(:,isp).*(ncc).*abs(1d0-omega(:)).^(ncc-1d0) ...
+                            .*((1d0-omega(:))>0d0)*(-1d0);
+                        drcc_ddic(:,isp) = drcc_domega(:,isp).*domega_ddic(:);
+                        drcc_dalk(:,isp) = drcc_domega(:,isp).*domega_dalk(:);
+                    end
                 
-                for isp=1:nspcc
-                    % calculation of dissolution rate for individual species
-                    rcc(:,isp) = kcc(:,isp).*ccx(:,isp).*abs(1d0-co3x(:).*1d3/co3sat).^(ncc).*((1d0-co3x(:)*1d3/co3sat)>0d0);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
-                    % calculation of derivatives of dissolution rate wrt conc. of caco3 species, dic and alk
-                    drcc_dcc(:,isp) = kcc(:,isp).*abs(1d0-co3x(:).*1d3/co3sat).^ncc.*((1d0-co3x(:)*1d3/co3sat)>0d0);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
-                    drcc_dco3(:,isp) = kcc(:,isp).*ccx(:,isp)*ncc.*abs(1d0-co3x(:)*1d3/co3sat).^(ncc-1d0) .*((1d0-co3x(:)*1d3/co3sat)>0d0) *(-1d3/co3sat);    % ((1d0-co3x(:)*1d3/co3sat)>0d0): 1 if true; 0 if false
-                    drcc_ddic(:,isp) = drcc_dco3(:,isp).*dco3_ddic(:);
-                    drcc_dalk(:,isp) = drcc_dco3(:,isp).*dco3_dalk(:);
-                end
-                
+                end 
                 % todo from here
-                % % TODO: add mocsy option here 
+                % % TODO: add mocsy option here --> YK adde CO2SYS option (see above) 
                 
                 for iz = 1:nz
                     row = 1 + (iz-1)*nsp;
