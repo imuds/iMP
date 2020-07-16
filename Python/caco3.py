@@ -2102,7 +2102,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     # switches for co2 chemistry 
     co2chem = co2chem               # dic = co2+hco3+co3; alk = hco3+2*co3
     # working directory 
-    homedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    homedir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     # file nane 
     if len(fl)==0:filename = '-no_name_specified' 
     else: filename = '-'+fl
@@ -2145,7 +2145,8 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     if alllabs: labs[:] = True
     if allnobio: nobio[:] = True
     #  preparing directory to store results 
-    workdir = homedir+'/output/profiles/python/multi/'
+    workdir = homedir+'/imp_output/python/'
+    workdir += fl +'/profiles/'
     if not anoxic: workdir += 'ox'
     else: workdir += 'oxanox'
     if any(labs): workdir += '_labs'
@@ -2153,8 +2154,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     if any(nobio): workdir += '_nobio'
     workdir += '/'
     workdir += 'cc-'+'{:.1e}'.format(ccflxi)+'_rr-'+'{:.1e}'.format(om2cc)
-    if sense: workdir += '_dep-'+'{:.1e}'.format(dep)
-    else: workdir += filename
+    workdir += '_dep-'+'{:.1e}'.format(dep)
     if not os.path.exists(workdir):os.makedirs(workdir)
     workdir += '/'
     file_ptflx=open(workdir+'ptflx.txt','w')
@@ -2817,9 +2817,8 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     file_sigmly.close()
     file_sigmlyd.close()
     file_sigbtm.close()
-    workdir  = homedir + '/output/res/'
-    workdir += 'python/'
-    workdir += 'multi/'
+    workdir  = homedir + '/imp_output/python/'
+    workdir += fl +'/res/'
     if not anoxic:
         workdir += 'ox'
     else :

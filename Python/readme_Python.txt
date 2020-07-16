@@ -101,8 +101,8 @@ Memo for IMP Python ver.
 
 Output data is made in almost the same formats as those in Fortran ver. 
 In case of Python ver., result directory is made in a directory under 'python' branches. 
-E.g., /output/profiles/python/multi/oxanox/..., 
-    /output/res/python/multi/oxanox/...
+E.g., /imp_output/python/simulation_name_specified/profiles/oxanox/, 
+    /imp_output/python/simulation_name_specified/res/oxanox/
 Ploting the results can be done with python scripts in /plot directory. 
 You need to indicate you are plotting Python ver. results by switch on/off 
     (i.e., make a logical parameter 'python' = True in these scripts). 
