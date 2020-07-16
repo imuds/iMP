@@ -5,37 +5,48 @@ import matplotlib.pyplot as plt
 import glob
 import os
 from matplotlib.ticker import MultipleLocator
+from matplotlib import mathtext
+mathtext.FontConstantsBase = mathtext.ComputerModernFontConstants
 """
 lysocline and CaCO3 burial fluxes 
 """
 
 ################ Setting up working directory ###################
 
-python = False  # if plotting python results make this True
+python = False   # if plotting python results make this True
+matlab = True    # if plotting matlab results make this True
 
 #### OM degradation scheme 
 org = 'ox'  
-##org = 'oxanox'
+# org = 'oxanox'
 
 ### if output directory has a specific name add the string 
-addname = ''
+addname = 'test_co2sys_v2'
 ### you need to change the directory name depending on the mixing style 
 mixing = ''
 ##mixing = 'turbo2'
 
 Workdir = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-Workdir += '/imp_output/fortran/res/'
-if python:Workdir+='python/'
-Workdir+='multi/'
+Workdir += '/imp_output/'
+if python or matlab: 
+    if python: Workdir+='python/'
+    elif matlab: Workdir+='matlab/'
+else:
+    Workdir+='fortran/'
+    
+if not addname =='':
+    Workdir += addname
+    
+Workdir += '/res/'
+
 if not mixing=='':
     Workdir += org+'-'+mixing
 else:
     Workdir += org
-if not addname =='':
-    Workdir += addname
     
 Workdir += '/'
+    
 
 # Or you can just specify the working directory here
 #  (where result files are restored)
@@ -45,11 +56,13 @@ Workdir += '/'
 
 rrlist = ['0.00E+0','0.50E+0','0.67E+0','0.10E+1','0.15E+1']  # You may need change this list if out put results use different formats
 if python:rrlist = ['0.0e+00','5.0e-01','6.7e-01','1.0e+00','1.5e+00']
+if matlab:rrlist = ['0.00','0.50','0.67','1.00','1.50']
 
 flxlist = ['6.0e-06','1.2e-05','1.8e-05','2.4e-05','3.0e-05' \
            ,'3.6e-05','4.2e-05','4.8e-05','5.4e-05','6.0e-05']
 
 flx = [6,12,18,24,30,36,42,48,54,60]
+rrt = [0,0.5,0.67,1,1.5]
 
 #### plotting parameters 
 plt.rcParams['font.family'] = 'Arial' 
@@ -82,7 +95,7 @@ plt.tick_params(right=True)
 nx = 5
 ny=2
 
-fig = plt.figure(figsize=(7,10))
+fig = plt.figure(figsize=(9,10))
 
 # file size determined by 5 rain ratios, 10 cc flxes, 25 water depths
 #    and 10 and 5 data for CaCO3 wt% and bur flx, respectively
@@ -90,7 +103,7 @@ fig = plt.figure(figsize=(7,10))
 #       you restore: previously these are 7 and 2)
 data_lys = np.zeros((5,10,25,11),dtype=np.float)
 data_bur = np.zeros((5,10,25,5),dtype=np.float)
-if python:
+if python or matlab:
     data_lys = np.zeros((5,10,25,7),dtype=np.float)
     data_bur = np.zeros((5,10,25,2),dtype=np.float)
 
@@ -99,7 +112,7 @@ cmap = plt.cm.get_cmap('jet')
 # First read data 
 for j in range(5):
     rr = rrlist[j]
-    if python:
+    if python or matlab:
         filelist = ['']*10
         for k in range(10):
             ff = flxlist[k]
@@ -116,7 +129,7 @@ for j in range(5):
     for i in range(len(filelist)):
         data_lys[j,i,:,:]=np.sort(np.loadtxt(filelist[i]),axis=0)
 
-    if python:
+    if python or matlab:
         filelist = ['']*10
         for k in range(10):
             ff = flxlist[k]
@@ -154,7 +167,22 @@ for j in range(5):
     if j!=0:
         ax.set_xticks([45,90])
         ax.set_yticklabels([])
-    fig.subplots_adjust(bottom=0.2)
+        if j==2:ax.set_xlabel('CaCO'+r'$\mathregular{_3}$'+' wt%')
+    elif j==0:ax.set_ylabel(r'$\mathregular{\Delta}$'+'CO'+r'$\mathregular{_3}$'+' ('+r'$\mathregular{\mu}$'+'M)')
+    
+    tx = 0.5
+    ty = 1.05
+    ax.text(tx,ty,str(rrt[j]),horizontalalignment='center', transform=ax.transAxes)
+    if j==2:
+        ty = 1.17
+        ax.text(tx,ty,'OM/CaCO'+r'$\mathregular{_3}$'+' rain ratio',horizontalalignment='center', transform=ax.transAxes)
+    
+    if j==4: 
+        ax.legend(
+            bbox_to_anchor=(1, 0.5), loc='upper left',facecolor = 'None',edgecolor='None'
+            ,title = 'CaCO'+r'$\mathregular{_3}$'+' rain\n'+'('+r'$\mathregular{\mu}$'+'mol cm'+r'$\mathregular{^{-2}}$'
+                +' yr'+r'$\mathregular{^{-1}}$'+')'
+            )
 
     print data_lys[j,:,:,2].max(),data_lys[j,:,:,2].min()
     print data_lys[j,:,:,4].max(),data_lys[j,:,:,4].min()
@@ -181,10 +209,17 @@ for j in range(5):
     if j!=0:
         ax2.set_yticklabels([])
         ax2.set_xticks([20,40])
+        if j==2:ax2.set_xlabel(
+            'CaCO'+r'$\mathregular{_3}$'+' burial ('+r'$\mathregular{\mu}$'+'mol cm'+r'$\mathregular{^{-2}}$'
+            +' yr'+r'$\mathregular{^{-1}}$'+')'
+            )
+    elif j==0:ax2.set_ylabel(r'$\mathregular{\Delta}$'+'CO'+r'$\mathregular{_3}$'+' ('+r'$\mathregular{\mu}$'+'M)')
 
 
-fig.subplots_adjust(left=0.25,bottom=0.1,wspace=0.06,hspace=0.3)
+fig.subplots_adjust(left=0.15,bottom=0.1,wspace=0.06,hspace=0.3,right=0.7)
 
+outfilename = Workdir+'lysbur.pdf'
+plt.savefig(outfilename, transparent=True)
 outfilename = Workdir+'lysbur.svg'
 plt.savefig(outfilename, transparent=True)
 subprocess.call('"C:\Program Files\Inkscape\inkscape.exe" -z -f ' \
