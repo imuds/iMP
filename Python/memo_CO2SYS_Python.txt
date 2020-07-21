@@ -1,0 +1,8 @@
+Memo for using CO2SYS with Python (working with Windows using Cygwin)
+1. Install PyCO2SYS 
+    See https://github.com/mvdh7/PyCO2SYS for install instruction. 
+2. Convert Python2.7 caco3.py code to Python3.X code because PyCO2SYS runs with Python3.X 
+    Type '2to3 caco3.py -w'.
+3. Run simulations: Type 'python3 caco3.py'. You will be asked about co2 chemistry calculation method. Enter 'co2sys'.
+    Or run sensitivity simulations by typing 'python3 caco3_sense.py'. 
+    In this case you must specify co2 chemistry calculation method in caco3_sense.py as co2chem = 'co2sys'. 

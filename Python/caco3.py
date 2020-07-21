@@ -8,8 +8,15 @@ try:
     from scipy.sparse import lil_matrix
     from scipy.sparse.linalg import spsolve
 except:
-    print 'you do not have scipy, so if you choose to use sparse matrix solver, code will crush'
-if os.path.exists('./mocsy.dll'):import mocsy
+    print 'WARNING: You do not have scipy, so if you choose to use sparse matrix solver, code will crush'
+if os.path.exists('./mocsy.dll'):
+    try:import mocsy
+    except:print 'WARNING: You do not have mocsy, so if you choose to use mocsy, code will crush'
+else: print 'WARNING: You do not have mocsy, so if you choose to use mocsy, code will crush'
+try:
+    from PyCO2SYS import CO2SYS
+except:
+    print 'WARNING: You do not have PyCO2SYS, so if you choose to use CO2SYS, code will crush'
 
 np.set_printoptions(
     linewidth = 120
@@ -367,6 +374,202 @@ def co2sys_mocsy(nz,alk,dic,tempi,depi,sali):
     # for i in range (0, 3):
         # print ph_deriv[2,i], ph_deriv[3,i], ph_deriv[4,i], ph_deriv[5,i]
     return co2,hco3,co3,10.**-ph,OmegaC,OmegaC_deriv[1,:],OmegaC_deriv[0,:]
+    
+def densatp(S,T,P):
+    """
+    From densatp.m by Edward T Peltzer, MBARI
+    Converted to Python by Yoshiki Kanzaki, 20/7/2020
+    CALCULATE THE DENSITY OF SEAWATER AT A GIVEN S, T and P.
+    Equation of State is from Millero & Poisson (1981) DSR V28: 625-629.
+
+    INPUT: Salinity (S) in g/kg or pss.
+            Temperature (T) in degrees C.
+            Pressure (P) in decibar.
+    OUTPUT:	Density [rhp] in g/cc:
+            rhp = densatp(S,T,P).
+            
+    Used in call_co2sys
+    """
+    # DEFINE CONSTANTS FOR EQUATION OF STATE
+    R0=+9.99842594E2
+    R1=+6.793952E-2
+    R2=-9.095290E-3
+    R3=+1.001685E-4
+    R4=-1.120083E-6
+    R5=+6.536332E-9
+
+    A0=+8.24493E-1
+    A1=-4.0899E-3
+    A2=+7.6438E-5
+    A3=-8.2467E-7
+    A4=+5.3875E-9
+
+    B0=-5.72466E-3
+    B1=+1.0227E-4
+    B2=-1.6546E-6
+
+    C=+4.8314E-4
+
+    # CALCULATE RHO
+
+    SR=np.sqrt(S)
+
+    RHO0=R0+T*(R1+T*(R2+T*(R3+T*(R4+T*R5))))
+    A=A0+T*(A1+T*(A2+T*(A3+T*A4)))
+    B=B0+T*(B1+T*B2)
+
+    RHO=RHO0+S*(A+B*SR+C*S)
+
+    # DEFINE CONSTANTS FOR SECANT BULK MODULUS
+
+    D0=+1.965221E+4
+    D1=+1.484206E+2
+    D2=-2.327105E+0
+    D3=+1.360477E-2
+    D4=-5.155288E-5
+
+    E0=+5.46746E+1
+    E1=-6.03459E-1
+    E2=+1.09987E-2
+    E3=-6.1670E-5
+
+    F0=+7.944E-2
+    F1=+1.6483E-2
+    F2=-5.3009E-4
+
+    G0=+3.239908E+0
+    G1=+1.43713E-3
+    G2=+1.16092E-4
+    G3=-5.77905E-7
+
+    H0=+2.2838E-3
+    H1=-1.0981E-5
+    H2=-1.6078E-6
+    H3=+1.91075E-4
+
+    I0=+8.50935E-5
+    I1=-6.12293E-6
+    I2=+5.2787E-8
+
+    J0=-9.9348E-7
+    J1=+2.0816E-8
+    J2=+9.1697E-10
+
+    # CORRECT P IN DECI-BARS TO BARS
+
+    Pc=P/10.
+
+    # CALCULATE K
+
+    H=H0+T*(H1+T*H2)+H3*SR
+    J=J0+T*(J1+T*J2)
+
+    K1=D0+T*(D1+T*(D2+T*(D3+T*D4)))
+    K2=E0+T*(E1+T*(E2+T*E3))
+    K3=F0+T*(F1+T*F2)
+    K4=G0+T*(G1+T*(G2+T*G3))+S*H
+    K5=I0+T*(I1+T*I2)+S*J
+
+    K=K1+S*(K2+SR*K3)+Pc*(K4+Pc*K5)
+
+    # CORRECT FOR PRESSURE
+
+    RHP=RHO*(1./(1.-Pc/K))
+
+    # CONVERT KG/M3 TO g/cc
+
+    rhp = RHP / 1000.
+    
+    return rhp
+    
+def dep2pres(dpth,xlat):
+    """
+    p80(dpth,xlat)
+
+    Compute Pressure from depth using Saunder's (1981) formula with eos80.
+
+    Reference:
+    Saunders, Peter M. (1981) Practical conversion of pressure
+    to depth, J. Phys. Ooceanogr., 11, 573-574, (1981)
+
+    Coded by:
+    R. Millard
+    March 9, 1983
+    check value: p80=7500.004 dbars at lat=30 deg., depth=7321.45 meters
+
+    Modified (slight format changes + added ref. details):
+    J. Orr, 16 April 2009
+    
+    Converted from fortran (mocsy/src/p80.f90) to Python by Y. Kanzaki, 7/20/2020
+    Used in call_co2sys
+    """
+    pi=3.141592654
+    plat = abs(xlat*pi/180.)
+    d  = np.sin(plat)
+    c1 = 5.92e-3+d**2 * 5.25e-3
+    p80 = ((1.-c1)-np.sqrt(((1.-c1)**2)-(8.84e-6*dpth))) / 4.42e-6  # return db
+    
+    return p80 
+    
+def call_co2sys(alk,dic,tempi,depi,sali):
+    """
+    expecting alk and dic in mol/cm3, tempi in C, depi in km and sali in g/kg 
+    """
+    xlat = 0
+    presi = dep2pres(depi*1e3,xlat) # presi in db while depi in km   
+    rho = densatp(sali,tempi,presi) # g/cm3
+
+    ### alk conversion from mol/cm3 to umol/kgSW  
+    par1type =    1 # The first parameter supplied is of type "1", which is "alkalinity"
+    # par1     = 2295 # value of the first parameter
+    par1     = alk/rho * 1e3*1e6 # value of the first parameter
+    # par1     = [2000:100:2500] # value of the first parameter
+    par2type =    2 # The first parameter supplied is of type "1", which is "DIC"
+    # par2     = 2154 # value of the second parameter, which is a long vector of different DIC's!
+    par2     = dic/rho * 1e6*1e3 # value of the second parameter, which is a long vector of different DIC's!
+    # par2     = [2000:100:2500] # value of the second parameter, which is a long vector of different DIC's!
+    # sal      =   35 # Salinity of the sample
+    sal      =   sali # Salinity of the sample
+    tempin   =    tempi # Temperature at input conditions
+    presin   =presi # Pressure    at input conditions
+    tempout  =    tempi # Temperature at output conditions - doesn't matter in this example
+    presout  =presi # Pressure    at output conditions - doesn't matter in this example
+    sil      =    0 # Concentration of silicate  in the sample (in umol/kg)
+    po4      =    0 # Concentration of phosphate in the sample (in umol/kg)
+    pHscale  =    1 # pH scale at which the input pH is reported ("1" means "Total Scale")  - doesn't matter in this example
+    k1k2c    =    10 # Choice of H2CO3 and HCO3- dissociation constants K1 and K2 ("4" means "Mehrbach refit")
+    kso4c    =    3 # Choice of HSO4- dissociation constants KSO4 ("1" means "Dickson")
+    
+    # Do the calculation. See CO2SYS's help for syntax and output format
+    A=CO2SYS(par1,par2,par1type,par2type,sal,tempin,tempout,presin,presout,sil,po4,pHscale,k1k2c,kso4c)
+
+    ph = A["pHout"]
+    co2 = A["CO2out"]
+    hco3 = A["HCO3out"]
+    co3 = A["CO3out"]
+    omega = A["OmegaCAout"]
+
+    ph = 10.**(-ph)
+    co2 = co2*1e-6/1e3*rho # umol/kg --> mol/g --> mol/cm3
+    hco3 = hco3*1e-9*rho
+    co3 = co3*1e-9*rho
+
+    dev = 1e-8
+    par1 = alk /rho * 1e3*1e6 * (1. + dev) 
+    A=CO2SYS(par1,par2,par1type,par2type,sal,tempin,tempout,presin,presout,sil,po4,pHscale,k1k2c,kso4c)
+    domega = (A["OmegaCAout"] - omega[:])
+    dalk = (par1 - alk/rho * 1e3*1e6)
+
+    domega_dalk = domega / dalk * 1e3*1e6/rho  
+
+    par1 = alk/rho * 1e3*1e6
+    par2 = dic/rho * 1e3*1e6 * (1. + dev) 
+    A=CO2SYS(par1,par2,par1type,par2type,sal,tempin,tempout,presin,presout,sil,po4,pHscale,k1k2c,kso4c)
+    domega = (A["OmegaCAout"] - omega[:])
+    ddic = (par2 - dic/rho * 1e3*1e6)
+    domega_ddic = domega / ddic * 1e3*1e6/rho   
+    
+    return co2,hco3,co3,ph,omega,domega_ddic,domega_dalk
 
 def calcupwindscheme(w,nz):
     # ------------ determine calculation scheme for advection 
@@ -933,7 +1136,8 @@ def calccaco3sys(  #
         amx[:,:]=0e0
         ymx=np.zeros(nmx,dtype=np.float64)
         # calling subroutine from caco3_therm.f90 to calculate aqueous co2 species 
-        if co2chem != 'mocsy':
+        # if co2chem != 'mocsy':
+        if co2chem == 'co2' or co2chem=='co2h2o':
             if co2chem == 'co2':
                 co2x,hco3x,co3x,prox,dco3_ddic,dco3_dalk,info = calcspecies(temp,sal,dep,dicx,alkx,nz)
                 # print info
@@ -975,13 +1179,16 @@ def calccaco3sys(  #
                     *((1e0-co3x[:]*1e3/co3sat)>0e0).astype(float)*(-1e3/co3sat)
                 drcc_ddic[:,isp] = drcc_dco3[:,isp]*dco3_ddic[:]
                 drcc_dalk[:,isp] = drcc_dco3[:,isp]*dco3_dalk[:]
-        elif co2chem == 'mocsy': 
-            co2x,hco3x,co3x,prox,ohmega,dohmega_ddic,dohmega_dalk = co2sys_mocsy(nz,alkx*1e6,dicx*1e6,temp,dep*1e3,sal)
-            co2x = co2x/1e6
-            hco3x = hco3x/1e6
-            co3x = co3x/1e6
-            dohmega_ddic = dohmega_ddic*1e6
-            dohmega_dalk = dohmega_dalk*1e6
+        elif co2chem == 'mocsy' or co2chem == 'co2sys': 
+            if co2chem == 'mocsy':
+                co2x,hco3x,co3x,prox,ohmega,dohmega_ddic,dohmega_dalk = co2sys_mocsy(nz,alkx*1e6,dicx*1e6,temp,dep*1e3,sal)
+                co2x = co2x/1e6
+                hco3x = hco3x/1e6
+                co3x = co3x/1e6
+                dohmega_ddic = dohmega_ddic*1e6
+                dohmega_dalk = dohmega_dalk*1e6
+            elif co2chem == 'co2sys':
+                co2x,hco3x,co3x,prox,ohmega,dohmega_ddic,dohmega_dalk = call_co2sys(alkx,dicx,temp,dep,sal)
             drcc_dohmega = np.zeros((nz,nspcc),dtype=np.float64)
             for isp in range(nspcc):
                 # calculation of dissolution rate for individual species 
@@ -2301,6 +2508,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         co2 = co2/1e6
         hco3 = hco3/1e6
         co3 = co3/1e6
+    elif co2chem == 'co2sys':co2,hco3,co3,pro,ohmega,dohmega_ddic,dohmega_dalk = call_co2sys(alk,dic,temp,dep,sal)
     pt=np.zeros(nz,dtype=np.float64)
     om=np.zeros(nz,dtype=np.float64)
     o2=np.zeros(nz,dtype=np.float64)
@@ -2323,7 +2531,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     hco3x[:]=hco3[:].copy()
     co3x[:]=co3[:].copy()
     co3i = co3[0]
-    if co2chem=='mocsy':        
+    if co2chem=='mocsy' or co2chem=='co2sys':        
         cai = (0.02128e0/40.078e0) * sal/1.80655e0
         co3sat = co3i*1e3/ohmega[0]
     ptx[:]=pt[:].copy()
@@ -2591,6 +2799,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 co2x = co2x/1e6
                 hco3x = hco3x/1e6
                 co3x = co3x/1e6
+            elif co2chem == 'co2sys':co2x,hco3x,co3x,prox,ohmega,dohmega_ddic,dohmega_dalk = call_co2sys(alkx,dicx,temp,dep,sal)
             if info==1:  
                 dt=dt/10e0
                 print 'stop'
@@ -2844,7 +3053,7 @@ def getinput():
     print ''
     print '*** just press [enter] to choose default parameter ***'
     print ''
-    co2chem     = raw_input('Enter how to calculate CO2 chemistry [default= co2] (co2 or mocsy): ')  
+    co2chem     = raw_input('Enter how to calculate CO2 chemistry [default= co2] (co2 or mocsy or co2sys): ')  
     ccflxi      = raw_input('Enter CaCO3 rain flux in mol cm-2 yr-1 [default= 12e-6]: ')  
     om2cc       = raw_input('Enter OM/CaCO3 rain ratio [default= 0.7]: ') 
     dep         = raw_input('Enter water depth in km [default= 3.5]: ')  
