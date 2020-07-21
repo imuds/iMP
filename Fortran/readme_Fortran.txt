@@ -152,7 +152,7 @@ EXAMPLES
 
 7. Lysocline with using mocsy (Section 4.3)
     a. Switch on 'sense', 'mocsy' and 'USE_PRECISION=2' in defines.h 
-    b. Complile the code with specifying executable file name as 'sense' and using mocsy.
+    b. Compile the code with specifying executable file name as 'sense' and using mocsy.
         (See memo_mocsy_Fortran.txt for details on how to use mocsy.)
     c. Create shell script 'pruns.sh' to run 'sense.exe' in parallel using caco3_shell.py. 
     d. Run the shell script, i.e., type './pruns.sh' 
