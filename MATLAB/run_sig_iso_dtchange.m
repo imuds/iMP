@@ -122,7 +122,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % molar volume (cm3 mol-1) needed for burial rate calculation
     mvom = global_var.mom/global_var.rhoom;  % om
     mvsed = global_var.msed/global_var.rhosed; % clay
-    mvcc = global_var.mcc/global_var.rhocc; % caco3
+    mvcc = global_var.mcc./global_var.rhocc % caco3
 
     % initial guess of burial profile, requiring porosity profile
     % w = burial rate, wi = burial rate initial guess
@@ -152,6 +152,8 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     d13c_ocnf = -1d0; % ocean d13c value with maximum change
     d18o_ocni = 1d0; % initial ocean d18o value
     d18o_ocnf = -1d0; % ocean d18o value with maximum change
+    capd47_ocni = 0.6; % D47 initial 
+    capd47_ocnf = 0.5; % D47 final
     % Dominik - initialize ocean d13c, d18o
     d13c_ocn = 0d0;
     d18o_ocn = 0d0;

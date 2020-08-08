@@ -37,7 +37,7 @@ classdef caco3_main
         mom = 30d0;  % g/mol OM assuming CH2O
         % :: msed = 87.11d0 % g/mol arbitrary sediment g/mol assuming opal (SiO2•n(H2O) )
         msed = 258.16d0;  % g/mol arbitrary sediment g/mol assuming kaolinite ( 	Al2Si2O5(OH)4 )
-        mcc = 100d0;  % g/mol CaCO3
+        % mcc = 100d0;  % g/mol CaCO3
         ox2om = 1.3d0;  % o2/om ratio for om decomposition (Emerson 1985; Archer 1991)
         % :: om2cc = 0.5d0  % rain ratio of organic matter to calcite
         ncc = 4.5d0;   % (Archer et al. 1989) reaction order for caco3 dissolution
@@ -60,7 +60,7 @@ classdef caco3_main
         def_biotest = false;   	% testing 5kyr signal change event
         def_size = false;       % testting two size caco3 simulation
         
-        def_sense = true;       % without signal tracking
+        def_sense = false;       % without signal tracking
         def_track2 = false;   	% using method2 to track signals (default 42 species)
         def_nondisp = true;       % won't showing results on display
         def_nonrec = false;       % define not recording profiles?
@@ -75,11 +75,12 @@ classdef caco3_main
         def_nodissolve = false;     % assuming no caco3 dissolution
         
         def_fullclump = false;      % allowing full 2 substitution including 17o
+        def_isotrack = false;      % directly tracking 5 isotopologues
         
         def_mocsy = false;          % using mocsy for caco3 thermodynamics
         MOCSY_USE_PRECISION = 2;    % digit used for mocsy
         
-        def_co2sys = true;          % using CO2SYS for caco3 thermodynamics
+        def_co2sys = false;          % using CO2SYS for caco3 thermodynamics
         
         def_recgrid = false;    % recording the grid to be used for making transition matrix in LABS
         
@@ -90,6 +91,7 @@ classdef caco3_main
         
         %%
         nspcc = 4;  % default: 4; if def_sense: 12;  if def_track2: 42; if def_size: 8    % number of CaCO3 species
+        mcc = 100d0;  % g/mol CaCO3
         ztot;   %=500d0; % if def_sense: 50.0d0;   % cm , total sediment thickness
         % om2cc = 0.666d0;   % rain ratio of organic matter to calcite
         om2cc = 1.5d0;  %0.7d0;      % 1.0d0;      % default 0.7d0;   % for signal tracking exp; rain ratio of organic matter to calcite
@@ -106,6 +108,19 @@ classdef caco3_main
         sporo; sporoi; sporof; ; porof  % solid volume fraction (1 - poro), i and f denote the top and bottom values of variables
         
         zox;
+        
+        % isotopologues
+        i12c16o=1;
+        i12c18o=2;
+        i13c16o=3;
+        i13c18o=4;
+        i14c=5;
+        r18o_pdb = 0.0020672 ; 
+        r17o_pdb = 0.0003859 ; 
+        r13c_pdb = 0.011180;
+        r14ci = 1.2e-12; % c14/c12 in modern, Aloisi et al. 2004, citing Kutschera 2000
+        k14ci = 1e0/8033e0; % [yr-1], Aloisi et al. 2004
+        
     end
     
     methods(Static)
@@ -149,8 +164,20 @@ classdef caco3_main
                 global_var.nspcc = 42;
             elseif(global_var.def_size)
                 global_var.nspcc = 8;
+            elseif(global_var.def_isotrack)
+                global_var.nspcc = 5;
             else
                 global_var.nspcc = 4;
+            end
+            
+            % allowing changes in mcc for different classes 
+            global_var.mcc = ones(1,global_var.nspcc)*global_var.mcc;
+            if (global_var.def_isotrack)
+                mcc(i12c16o) = 40.078+12.+16.*3.
+                mcc(i12c18o) = 40.078+12.+16.*2.+18.
+                mcc(i13c16o) = 40.078+13.+16.*3.
+                mcc(i13c18o) = 40.078+13.+16.*2.+18.
+                mcc(i14c) = 40.078+14.+16.*3.
             end
             
             if(global_var.def_nodissolve)
@@ -275,6 +302,19 @@ classdef caco3_main
                 kcc(:,4) = kcci*10d0;
             end
             
+            if global_var.def_isotrack
+                krad(:,i14c) = k14ci
+                % if global_ver.def_timetrack
+                    % krad(:,i14c+nspcc/2) = k14ci 
+                % end
+                % if global_var.def_kie
+                    % kcc(:,i13c18o) = kcci*(1e0-5e-5) 
+                    % if global_ver.def_timetrack 
+                        % kcc(:,i13c18o+nspcc/2) = kcci*(1e0-5e-5)
+                    % end 
+                % end 
+            end 
+            
             keq1 = caco3_therm.calceq1(tmp,sal,dep);    % carbonic acid dissociation const. function called from caco3_therm.f90
             keq2 = caco3_therm.calceq2(tmp,sal,dep);    % bicarbonate dissociation const. function called from caco3_therm.f90
             
@@ -288,7 +328,8 @@ classdef caco3_main
             %% determine steady state flux
             
             omflx = om2cc*ccflxi;  % om rain = rain ratio x caco3 rain
-            detflx = (1d0/9d0)*ccflxi*mcc; % 90% of mass flux becomes inorganic C; g cm-2 yr-1
+            % detflx = (1d0/9d0)*ccflxi*mcc; % 90% of mass flux becomes inorganic C; g cm-2 yr-1
+            detflx = (1d0/9d0)*ccflxi*100.; % 90% of mass flux becomes inorganic C; g cm-2 yr-1
             ccflx = ones(nspcc,1)*ccflxi/nspcc;  %  rains of individual caco3 species (vector of nspcc species) is equivalently distributed as default
             
         end
@@ -300,8 +341,10 @@ classdef caco3_main
             % burial rate w from rain fluxes represented by volumes
             % initial guess assuming a box representation (this guess is accurate when there is no caco3 dissolution occurring)
             % om is not considered as it gets totally depleted
-            
-            wi = (detflx./msed.*mvsed + sum(ccflx).*mvcc)./(1d0-poroi);
+            ccflx(:)
+            mvcc(:)
+            ccflx(:).*mvcc(:)
+            wi = (detflx./msed.*mvsed + sum(ccflx(:).*mvcc(:)))./(1d0-poroi)
             w = wi * ones(1,nz);
             
         end
@@ -1645,7 +1688,7 @@ classdef caco3_main
                             if (trans(iiz,iz,isp+2)==0d0)
                                 continue        % cycle in fortran
                             end
-                            dw(iz) = dw(iz) - mvcc*(-trans(iiz,iz,isp+2)/dz(iz)*dz(iiz)*(1d0-poro(iiz))*ccx(iiz,isp));
+                            dw(iz) = dw(iz) - mvcc(isp)*(-trans(iiz,iz,isp+2)/dz(iz)*dz(iiz)*(1d0-poro(iiz))*ccx(iiz,isp));
                         end
                     else
                         if (nonlocal(isp+2))
@@ -1653,12 +1696,15 @@ classdef caco3_main
                                 if (trans(iiz,iz,isp+2)==0d0)
                                     continue        % cycle in fortran
                                 end
-                                dw(iz) = dw(iz) -mvcc*(-trans(iiz,iz,isp+2)/dz(iz)*ccx(iiz,isp));
+                                dw(iz) = dw(iz) -mvcc(isp)*(-trans(iiz,iz,isp+2)/dz(iz)*ccx(iiz,isp));
                             end
                         end %if
                     end %if
                 end %for
-                dw(iz) = dw(iz) -(1d0-poro(iz))*mvcc*sum(rcc(iz,:));
+                rcc(iz,:)
+                mvcc(:)
+                rcc(iz,:).*mvcc(:)
+                dw(iz) = dw(iz) -(1d0-poro(iz))*sum(rcc(iz,:).*transpose(mvcc(:)));
             end  %% end first for
             
             % residual fluxes
@@ -1895,8 +1941,10 @@ classdef caco3_main
             %% calculate solid property, rho (density) and frt (total vol.frac)
             
             for iz=1:nz
-                rho(iz) = omx(iz)*mom + ptx(iz)*msed +  sum(ccx(iz,:))*mcc;  % calculating bulk density
-                frt(iz) = omx(iz)*mvom + ptx(iz)*mvsed + sum(ccx(iz,:))*mvcc;  % calculation of total vol. fraction of solids
+                % rho(iz) = omx(iz)*mom + ptx(iz)*msed +  sum(ccx(iz,:))*mcc;  % calculating bulk density
+                % frt(iz) = omx(iz)*mvom + ptx(iz)*mvsed + sum(ccx(iz,:))*mvcc;  % calculation of total vol. fraction of solids
+                rho(iz) = omx(iz)*mom + ptx(iz)*msed +  sum(ccx(iz,:).*transpose(mcc(:)))  % calculating bulk density
+                frt(iz) = omx(iz)*mvom + ptx(iz)*mvsed + sum(ccx(iz,:).*transpose(mvcc(:)))  % calculation of total vol. fraction of solids
             end
             
             % check error for density (rho)
@@ -1925,7 +1973,7 @@ classdef caco3_main
             %           if (iz==1) (1-poro(iz))*w(iz) = total volume flux + dw(iz)*dz(iz)
             % which leads to the following calculations
             
-            wi = (detflx/msed*mvsed + sum(ccflx)*mvcc +omflx*mvom)/(1d0-poroi);  % upper value; (1d0-poroi) is almost meaningless, see below
+            wi = (detflx/msed*mvsed + sum(ccflx.*mvcc) +omflx*mvom)/(1d0-poroi)  % upper value; (1d0-poroi) is almost meaningless, see below
             for iz=1:nz
                 if (iz==1)
                     w(iz)=((1d0-poroi)*wi + dw(iz)*dz(iz))/(1d0-poro(iz));
@@ -1987,7 +2035,7 @@ classdef caco3_main
                 file_tmp = fopen(str,'wt');
                 for iz = 1:nz
                     %                write(file_tmp,*) z(iz),age(iz),(cc(iz,isp)*mcc/2.5d0*100d0,isp=1,nspcc)
-                    fprintf(file_tmp,fmt,z(iz), age(iz),cc(iz,:)*mcc/2.5d0*100d0);
+                    fprintf(file_tmp,fmt,z(iz), age(iz),cc(iz,:).*transpose(mcc(:))/2.5d0*100d0);
                 end
                 fclose(file_tmp);
                 
@@ -2026,7 +2074,7 @@ classdef caco3_main
                     %                 write(file_tmp,*) z(iz),age(iz),sum(cc(iz,:))*100d0/2.5d0*100d0, dic(iz)*1d3, alk(iz)*1d3, co3(iz)*1d3-co3sat &
                     %                 , sum(rcc(iz,:)),-log10(pro(iz))
                     fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
-                        z(iz),age(iz),sum(ccx(iz,:))*mcc/rho(iz)*100d0, dicx(iz)*1d3, alkx(iz)*1d3, co3x(iz)*1d3-co3sat, sum(rcc(iz,:)),-log10(prox(iz)) );
+                        z(iz),age(iz),sum(ccx(iz,:).*transpose(mcc(:)))/rho(iz)*100d0, dicx(iz)*1d3, alkx(iz)*1d3, co3x(iz)*1d3-co3sat, sum(rcc(iz,:)),-log10(prox(iz)) );
                 end
                 fclose(file_tmp);
                 
@@ -2054,7 +2102,7 @@ classdef caco3_main
                 file_tmp = fopen(str,'wt');
                 for iz = 1:nz
                     %                write(file_tmp,*) z(iz),age(iz),(cc(iz,isp)*mcc/2.5d0*100d0,isp=1,nspcc)
-                    fprintf(file_tmp,fmt,z(iz), age(iz),ccx(iz,:)*mcc/rho(iz)*100d0);
+                    fprintf(file_tmp,fmt,z(iz), age(iz),ccx(iz,:).*transpose(mcc(:))/rho(iz)*100d0);
                 end
                 fclose(file_tmp);
                 
@@ -2390,15 +2438,15 @@ classdef caco3_main
                     % 	write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
                     %   	,sum(ccx(izrec,:))*mcc/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0
                     fprintf(file_sigmlyid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
-                        time-age(izrec),d13c_blk(izrec),d18o_blk(izrec), sum(ccx(izrec,:))*mcc/rho(izrec)*100d0, ptx(izrec)*msed/rho(izrec)*100d0 );
+                        time-age(izrec),d13c_blk(izrec),d18o_blk(izrec), sum(ccx(izrec,:).*transpose(mcc(:)))/rho(izrec)*100d0, ptx(izrec)*msed/rho(izrec)*100d0 );
                     % 	write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
                     %    	,sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0
                     fprintf(file_sigmlydid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
-                        time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2), sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 );
+                        time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2), sum(ccx(izrec2,:).*transpose(mcc(:)))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 );
                     %  	write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
                     %       ,sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0
                     fprintf(file_sigbtmid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
-                        time-age(nz),d13c_blk(nz),d18o_blk(nz), sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 );
+                        time-age(nz),d13c_blk(nz),d18o_blk(nz), sum(ccx(nz,:).*transpose(mcc(:)))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 );
                 end
             else
                 if (all(w>=0d0))    % not recording when burial is negative
@@ -2408,27 +2456,27 @@ classdef caco3_main
                     %       ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8))*mcc/rho(izrec)*100d0
                     fprintf(file_sigmlyid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
                         time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) ...
-                        ,sum(ccx(izrec,:))*mcc/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  ...
-                        ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4))*mcc/rho(izrec)*100d0  ...
-                        ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8))*mcc/rho(izrec)*100d0  );
+                        ,sum(ccx(izrec,:).*transpose(mcc(:)))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  ...
+                        ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4).*transpose(mcc(1:4)))/rho(izrec)*100d0  ...
+                        ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8).*transpose(mcc(5:8)))/rho(izrec)*100d0  );
                     %     write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
                     %         ,sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
                     %         ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4))*mcc/rho(izrec2)*100d0  &
                     %         ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8))*mcc/rho(izrec2)*100d0
                     fprintf(file_sigmlydid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
                         time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) ...
-                        ,sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 ...
-                        ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4))*mcc/rho(izrec2)*100d0  ...
-                        ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8))*mcc/rho(izrec2)*100d0 );
+                        ,sum(ccx(izrec2,:).*transpose(mcc(:)))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 ...
+                        ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4).*transpose(mcc(1:4)))/rho(izrec2)*100d0  ...
+                        ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8).*transpose(mcc(5:8)))/rho(izrec2)*100d0 );
                     %     write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
                     %         ,sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 &
                     %         ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4))*mcc/rho(nz)*100d0  &
                     %         ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8))*mcc/rho(nz)*100d0
                     fprintf(file_sigbtmid,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ',...
                         time-age(nz),d13c_blk(nz),d18o_blk(nz) ...
-                        ,sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 ...
-                        ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4))*mcc/rho(nz)*100d0  ...
-                        ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8))*mcc/rho(nz)*100d0 );
+                        ,sum(ccx(nz,:).*transpose(mcc(:)))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 ...
+                        ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4).*transpose(mcc(1:4)))/rho(nz)*100d0  ...
+                        ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8).*transpose(mcc(5:8)))/rho(nz)*100d0 );
                 end
                 
             end
