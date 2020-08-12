@@ -222,8 +222,8 @@ real(kind=8) dage(nz), age(nz)  ! individual time span and age of sediment grids
 #ifdef sense
 real(kind=8) :: ztot = 50d0 ! cm , total sediment thickness 
 #else
-! real(kind=8) :: ztot = 500d0 ! cm 
-real(kind=8) :: ztot = 20000d0 ! cm 
+real(kind=8) :: ztot = 500d0 ! cm 
+! real(kind=8) :: ztot = 20000d0 ! cm 
 #endif
 integer(kind=4) :: nsp  ! independent chemical variables, this does not have to be decided here    
 integer(kind=4) :: nmx      ! row (and col) number of matrix created to solve linear difference equations 
@@ -288,6 +288,7 @@ real(kind=8):: dt_max = 1d4  ! almost no limit
 real(kind=8):: dt_dt_max = 1d-1
 integer(kind=4) iizox, iizox_errmin, w_save(nz)
 integer(kind=4) :: itr_w_max = 20
+! integer(kind=4) :: itr_w_max = 1000
 real(kind=8) :: kom_ox(nz),kom_an(nz),kom_dum(nz,3)
 logical :: warmup_done = .false.
 logical :: all_oxic
@@ -1946,7 +1947,7 @@ enddo
 
 !~~~~~~~~~~~~~ saving grid for LABS ~~~~~~~~~~~~~~~~~~~~~~
 #ifdef recgrid
-open(unit=100, file='C:/cygwin64/home/YK/LABS/1dgrid.txt',action='write',status='unknown')
+open(unit=100, file='C:/cygwin64/home/YK/iLABS/1dgrid.txt',action='write',status='unknown')
 do iz = 1, nz
     write(100,*) dz(iz)
 enddo
@@ -2609,13 +2610,16 @@ endif
 
 if (.true.) then  ! devided by the time duration when transition matrices are created in LABS and weakening by a factor
 ! if (.false.) then 
-    translabs = translabs *365.25d0/10d0*1d0/3d0  
-    ! translabs = translabs *365.25d0/10d0*1d0/10d0
+    ! translabs = translabs *365.25d0/10d0*1d0/3d0  
+    ! translabs = translabs *365.25d0/10d0*1d0/15d0  
+    translabs = translabs *365.25d0/10d0*1d0/10d0
 endif
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 zml=zml_ref ! mixed layer depth assumed to be a reference value at first 
 
 zrec = 1.1d0*maxval(zml)  ! depth where recording is made, aimed at slightly below the bottom of mixed layer  
+if (any(labs)) zrec = 1.15d0*maxval(zml)  ! deeper because labs somehow mixing slightly deeper than mixed layer depth 
+! zrec = 1.15d0*maxval(zml)  ! depth where recording is made, aimed at slightly below the bottom of mixed layer  
 ! zrec = maxval(zml)  ! depth where recording is made, aimed at slightly below the bottom of mixed layer  
 zrec2 = 2.0d0*maxval(zml)  ! depth where recording is made ver. 2, aimed at 2 time bottom depth of mixed layer 
 
