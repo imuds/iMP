@@ -1,4 +1,4 @@
-function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, folder)
+function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, biomode, folder)
 %
 %   *******************************************************************   %
 %   ***  Running IMP for signal tracking and lysocline exps ***********   %
@@ -22,14 +22,25 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     %% saves profiles in .txt files
     % burial rate is updated at a give time step until it converges well
     
-    dep_max = 5.0d0;    %   max depth to be changed to during the experiment
+    % dep_max = 5.0d0;    %   max depth to be changed to during the experiment
+    % dep_max = 3.5d0;    %   max depth to be changed to during the experiment
+    dep_max = dep_in;    %   max depth to be changed to during the experiment
 %    folder = './0_test';
     % mkdir(folder);      % create output folder
-    interval =10;       % if def_nondisp = false: choose a value between 1 to nz; om depth profile is shown with this interval; e.g., if inteval = 1, conc. at all depths are shown
+    interval =20;       % if def_nondisp = false: choose a value between 1 to nz; om depth profile is shown with this interval; e.g., if inteval = 1, conc. at all depths are shown
     % e.g., if interval = 10, om conc. at nz/10 depths are shown
     flag_steadystate = false;
     % initialize/define global properties/variables
     global_var = caco3_main;
+    
+    biomode
+    if strcmpi(biomode, 'nobio')
+        global_var.def_allnobio = true;
+    elseif strcmpi(biomode, 'turbo2')
+        global_var.def_allturbo2 = true;
+    elseif strcmpi(biomode, 'labs')
+        global_var.def_alllabs = true;
+    end 
     
     homedir = erase(pwd,'iMP\MATLAB');
     homedir = strcat(homedir,'imp_output/matlab/');
@@ -81,6 +92,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
     dw = zeros(1, global_var.nz);                       % burial rate change
     rcc = zeros(global_var.nz, global_var.nspcc);       % dissolution rate of caco3
+    deccc = zeros(global_var.nz, global_var.nspcc);       % dissolution rate of caco3
 
     tmp = bc.tmp;   % 2.0;
     sal = bc.sal;   % 35.0;
@@ -122,7 +134,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % molar volume (cm3 mol-1) needed for burial rate calculation
     mvom = global_var.mom/global_var.rhoom;  % om
     mvsed = global_var.msed/global_var.rhosed; % clay
-    mvcc = global_var.mcc./global_var.rhocc % caco3
+    mvcc = global_var.mcc./global_var.rhocc; % caco3
 
     % initial guess of burial profile, requiring porosity profile
     % w = burial rate, wi = burial rate initial guess
@@ -139,7 +151,9 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     [rectime, cntrec, time_spn, time_trs, time_aft] = caco3_main.recordtime(global_var.nrec, wi, global_var.ztot, global_var.def_biotest, global_var.def_sense, global_var.def_nonrec, folder);
 
     % water depth, i and f denote initial and final values
-    depi = dep_in;  % depth before event
+    % depi = dep_in;  % depth before event
+    % depf = dep_max;   % max depth to be changed to
+    depi = global_var.dep_ref;  % depth before event
     depf = dep_max;   % max depth to be changed to
 
     % %  flux ratio of fine particles: i and f denote initial and final values
@@ -165,9 +179,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
     % % make transition matrix
     [trans,izrec,izrec2,izml,mix_type.nonlocal] = ...
-        caco3_main.make_transmx(mix_type.labs,global_var.nspcc,mix_type.turbo2,mix_type.nobio,global_var.dz,global_var.sporo,global_var.nz,global_var.z, global_var.zml_ref, global_var.def_size);
+        caco3_main.make_transmx(mix_type.labs,global_var.nspcc,mix_type.turbo2,mix_type.nobio,global_var.dz ...
+            ,global_var.sporo,global_var.nz,global_var.z, global_var.zml_ref, global_var.def_size,folder);
 
-    [keq1    ,keq2   ,keqcc  ,co3sat, dif_dic    ,dif_alk    ,dif_o2 ,kom, kcc, global_var] = caco3_main.coefs(tmp,sal,dep, global_var);
+    [keq1    ,keq2   ,keqcc  ,co3sat, dif_dic    ,dif_alk    ,dif_o2 ,kom, kcc, krad, global_var] = caco3_main.coefs(tmp,sal,dep, global_var);
 
     %   INITIAL CONDITIONS %
     % bc.o2 = bc.o2i*1d-6/1d3 * ones(1, global_var.nz);	% o2 conc. in uM converted to mol/cm3   % YK commented out
@@ -249,26 +264,41 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
             % determine time step dt by calling timestep(time,nt_spn,nt_trs,nt_aft,dt) where nt_xx denotes total iteration number
             nt_spn = 800;     % timesteps for spin-up % YK modified
-            if (~warmup_done)
-                if (int_count<11)
-                    nt_spn = 80000;
-                elseif (int_count<21)
-                    nt_spn = 8000;
-                else
-                    warmup_done = true;
-                    time = 0d0;
-                    int_count = 1;
-                    continue        % cycle in fortran
-                end
-            end
             nt_trs = 5000;    % timesteps close to & during event (signal transition) % YK modified
             nt_aft = 1000;    % timesteps after event  % YK modified
+            if global_var.def_biotest
+                nt_spn=40;
+                nt_trs=500;
+                nt_aft=100;
+            end 
+            if warmup_done
+                [dt] = caco3_main.timestep(time, nt_spn, nt_trs, nt_aft, time_spn, time_trs, dt, global_var.def_biotest);
+            elseif (~warmup_done)
+                dt_max = 1e4;
+                if (int_count ==1) 
+                    dt = 1e-2;
+                else
+                    if (dt<dt_max)
+                        dt = dt*1.01e0;
+                    end
+                end 
+                % if (int_count<11)
+                    % nt_spn = 80000;
+                % elseif (int_count<21)
+                    % nt_spn = 8000;
+                % else
+                    % warmup_done = true;
+                    % time = 0d0;
+                    % int_count = 1;
+                    % continue        % cycle in fortran
+                % end
+            end
 
-            [dt] = caco3_main.timestep(time, nt_spn, nt_trs, nt_aft, time_spn, time_trs, dt);
-
-            [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp] = ...
+            [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp,capd47_ocn] = ...
                 caco3_main.signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
-                ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest);
+                ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest ...
+                ,capd47_ocni,capd47_ocnf,global_var.def_isotrack,global_var.tol,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r14ci...
+                );
 
             [dep] = caco3_main.bdcnd(time, time_spn, time_trs, depi, depf, global_var.def_biotest);
         else
@@ -280,11 +310,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         end
 
 
-        % isotope signals represented by caco3 rain fluxes
-        d18o_flx = sum(d18o_sp(:).*ccflx(:))/bc.ccflxi;
-        d13c_flx = sum(d13c_sp(:).*ccflx(:))/bc.ccflxi;
-
-        if(~global_var.def_track2)
+        if((~global_var.def_track2) && (~global_var.def_isotrack) )
+            % isotope signals represented by caco3 rain fluxes
+            d18o_flx = sum(d18o_sp(:).*ccflx(:))/bc.ccflxi;
+            d13c_flx = sum(d13c_sp(:).*ccflx(:))/bc.ccflxi;
             if (abs(d13c_flx - d13c_ocn)>global_var.tol || abs(d18o_flx - d18o_ocn)>global_var.tol)  % check comparability with input signals
                 % in fortran stop
                 fprintf('error in assignment of proxy:\n');
@@ -298,13 +327,13 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         if(~global_var.def_size)
             %  recording fluxes of two types of caco3 separately
             % write(file_bound,*) time, d13c_ocn, d18o_ocn, (ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
-            fmt=[repmat('%17.16e \t',1,global_var.nspcc+9) '\n'];
-            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, ccflx(:), tmp, dep, sal, bc.dici,bc.alki, bc.o2i);
+            fmt=[repmat('%17.16e \t',1,global_var.nspcc+10) '\n'];
+            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn, ccflx(:), tmp, dep, sal, bc.dici,bc.alki, bc.o2i);
         else
             %  do not record separately
             % write(file_bound,*) time, d13c_ocn, d18o_ocn, sum(ccflx(1:4)),sum(ccflx(5:8)),(ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
-            fmt=[repmat('%17.16e \t',1,global_var.nspcc+11) '\n'];
-            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, sum(ccflx(1:4)),sum(ccflx(5:8)), ccflx(:), tmp, dep, sal,bc.dici,bc.alki, bc.o2i);
+            fmt=[repmat('%17.16e \t',1,global_var.nspcc+12) '\n'];
+            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn,sum(ccflx(1:4)),sum(ccflx(5:8)), ccflx(:), tmp, dep, sal,bc.dici,bc.alki, bc.o2i);
 
         end
         % <<<<<<<<<<<<<<<<<<<<<  NEW: 05/13/2019  <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<<
@@ -315,7 +344,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         %        dif_dic,dif_alk,dif_o2,kom,kcc,co3sat & % output
         %        ,temp,sal,dep,nz,nspcc,poro,cai  & %  input
         %        )
-        [keq1    ,keq2   ,keqcc  ,co3sat, dif_dic    ,dif_alk    ,dif_o2 ,kom, kcc, global_var] = caco3_main.coefs(tmp,sal,dep, global_var);
+        [keq1    ,keq2   ,keqcc  ,co3sat, dif_dic    ,dif_alk    ,dif_o2 ,kom, kcc, krad, global_var] = caco3_main.coefs(tmp,sal,dep, global_var);
         %% /////////////////////
 
 
@@ -519,7 +548,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             end
             %~~  OM & O2 calculation END ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             % calculation of oxic and anoxic degradation of om (oxco2 and anco2, respectively)
-            fprintf('finising om & o2 \n');
+            % fprintf('finising om & o2 \n');
 
             %                     for iz = 1:global_var.nz
             %                         if (o2x(iz) > global_var.o2th)
@@ -566,11 +595,11 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
             %% calculation of caco3 system
             % call calccaco3sys()
-            [ccx,dicx,alkx,rcc,dt, flg_500, itr_om_o2] = ...
+            [ccx,dicx,alkx,rcc,dt, flg_500, itr_om_o2,deccc] = ...
                 caco3_main.calccaco3sys(ccx,dicx,alkx,rcc, dt, global_var.nspcc,dic,alk,dep,sal,tmp,mix_type.labs,mix_type.turbo2,mix_type.nonlocal, ...
                 global_var.sporo, global_var.sporoi, global_var.sporof, global_var.poro, dif_alk, dif_dic, ...
                 w, up, dwn, cnr, adf, global_var.dz, trans, cc, oxco2, anco2, co3sat, kcc, ccflx, global_var.ncc, global_var.nz, ...
-                global_var.tol, global_var.poroi, flg_500, global_var.fact, bc.alki,bc.dici, global_var.ccx_th, global_var.def_nonrec, global_var.def_sparse, global_var.def_showiter, global_var.def_sense,co2chem);
+                global_var.tol, global_var.poroi, flg_500, global_var.fact, bc.alki,bc.dici, global_var.ccx_th, global_var.def_nonrec, global_var.def_sparse, global_var.def_showiter, global_var.def_sense,co2chem,krad);
 
             if(flg_500)
                 dt = dt/10;
@@ -628,10 +657,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
             %          % calculation of fluxes relevant to caco3 and co2 system
             %             % call calcflxcaco3sys()
-            [cctflx,ccdis,ccdif,ccadv,ccrain,ccres,alktflx,alkdis,alkdif,alkdec,alkres, dictflx,dicdis,dicdif,dicres,dicdec, dw] = ...
+            [cctflx,ccdis,ccdif,ccadv,ccrain,ccres,alktflx,alkdis,alkdif,alkdec,alkres, dictflx,dicdis,dicdif,dicres,dicdec, dw,ccrad,alkrad] = ...
                 caco3_main.calcflxcaco3sys(dw, global_var.nspcc, ccx, cc, ccflx,dt, global_var.dz, rcc, adf, up, dwn, cnr, w, dif_alk, dif_dic, dic, dicx, alk, alkx, oxco2, anco2, trans, ...
                 mix_type.turbo2, mix_type.labs,mix_type.nonlocal, global_var.sporof, int_count, global_var.nz, global_var.poro, global_var.sporo, ...
-                bc.dici,bc.alki, mvcc, global_var.tol);
+                bc.dici,bc.alki, mvcc, global_var.tol,deccc);
 
             %~~  caco3 calculations END ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -660,6 +689,21 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                     break   % in fortran exit  (terminates loop: while(err_w > global_var.tol))
                 end
             end %#endif                    %% ========= calculation of burial velocity =============================
+            
+            % if check warmup is done or not 
+            if (~warmup_done) && (err_f < global_var.tol)  
+                warmup_done = true;
+                int_count = 1;
+                time = 0e0;
+                fprintf(  'warming up is done ...');    
+                pause(10);
+                continue  
+            end
+            
+            % if (err_f > 1.) 
+                % msg = 'error: too large deviation of sediment volume --- STOP';
+                % error(msg)
+            % end 
 
             wx = w;  % recording previous burial velocity
 
@@ -712,15 +756,57 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         d13c_blkf = zeros(1,global_var.nz);
         d18o_blkc = zeros(1,global_var.nz);
         d13c_blkc = zeros(1,global_var.nz);
+        d14c_age = zeros(1,global_var.nz);
+        capd47 = zeros(1,global_var.nz);
+        d17o_blk = zeros(1,global_var.nz);
+        time_blk = zeros(1,global_var.nz);
+        time_blkc = zeros(1,global_var.nz);
+        time_blkf = zeros(1,global_var.nz);
         for iz=1:global_var.nz
             d18o_blk(iz) = sum(d18o_sp(:)'.*ccx(iz,:))/sum(ccx(iz,:));
             d13c_blk(iz) = sum(d13c_sp(:)'.*ccx(iz,:))/sum(ccx(iz,:));
             if(global_var.def_size)
-                d18o_blkf(iz) = sum(d18o_sp(1:4)*ccx(iz,1:4))/sum(ccx(iz,1:4));
-                d13c_blkf(iz) = sum(d13c_sp(1:4)*ccx(iz,1:4))/sum(ccx(iz,1:4));
-                d18o_blkc(iz) = sum(d18o_sp(5:8)*ccx(iz,5:8))/sum(ccx(iz,5:8));
-                d13c_blkc(iz) = sum(d13c_sp(5:8)*ccx(iz,5:8))/sum(ccx(iz,5:8));
+                d18o_blkf(iz) = sum(d18o_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
+                d13c_blkf(iz) = sum(d13c_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
+                d18o_blkc(iz) = sum(d18o_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
+                d13c_blkc(iz) = sum(d13c_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
             end
+            if global_var.def_isotrack
+                % if ~timetrack
+                    r18o_blk(iz) = sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i13c18o)])  ...
+                        /sum([3e0*ccx(iz,global_var.i12c16o),3e0*ccx(iz,global_var.i13c16o),2e0*ccx(iz,global_var.i12c18o),2e0*ccx(iz,global_var.i13c18o)]);
+                    r13c_blk(iz) = sum([ccx(iz,global_var.i13c16o),ccx(iz,global_var.i13c18o)])  ...
+                        /sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i12c16o)]);
+                    r17o_blk(iz) = 0e0;
+                    d18o_blk(iz) = caco3_main.r2d(r18o_blk(iz),global_var.r18o_pdb);
+                    d17o_blk(iz) = caco3_main.r2d(r17o_blk(iz),global_var.r17o_pdb);
+                    d13c_blk(iz) = caco3_main.r2d(r13c_blk(iz),global_var.r13c_pdb);
+                    d14c_age(iz) = -(1e0/global_var.k14ci)*log(ccx(iz,global_var.i14c) ...   
+                        /sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i12c16o)]) ... 
+                        /global_var.r14ci); % Stuiver and Polach (1977)
+                    r47 = (ccx(iz,global_var.i13c18o))/ccx(iz,global_var.i12c16o);
+                    r47s = r13c_blk(iz)*r18o_blk(iz); 
+                    capd47(iz) = ((r47/r47s-1e0) )*1e3; 
+                % else
+                    % r18o_blk[iz] = np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i13c18o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i13c18o+nspcc/2]]))  \
+                        % /np.sum(np.array([3e0*ccx[iz,i12c16o],3e0*ccx[iz,i13c16o],2e0*ccx[iz,i12c18o],2e0*ccx[iz,i13c18o]  \
+                        % ,3e0*ccx[iz,i12c16o+nspcc/2],3e0*ccx[iz,i13c16o+nspcc/2],2e0*ccx[iz,i12c18o+nspcc/2],2e0*ccx[iz,i13c18o+nspcc/2]]))
+                    % r13c_blk[iz] = np.sum(np.array([ccx[iz,i13c16o],ccx[iz,i13c18o],ccx[iz,i13c16o+nspcc/2],ccx[iz,i13c18o+nspcc/2]]))  \
+                        % /np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i12c16o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i12c16o+nspcc/2]]))
+                    % r17o_blk[iz] = 0e0
+                    % d18o_blk[iz] = r2d(r18o_blk[iz],r18o_pdb)
+                    % d17o_blk[iz] = r2d(r17o_blk[iz],r17o_pdb)
+                    % d13c_blk[iz] = r2d(r13c_blk[iz],r13c_pdb)
+                    % d14c_age[iz] = -(1e0/k14ci)*np.log((ccx[iz,i14c]+ccx[iz,i14c+nspcc/2])   \
+                        % /np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i12c16o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i12c16o+nspcc/2]])) \
+                        % /r14ci) # Stuiver and Polach (1977)
+                    
+                    % r47 = (ccx[iz,i13c18o]+ccx[iz,i13c18o+nspcc/2])/(ccx[iz,i12c16o]+ccx[iz,i12c16o+nspcc/2])
+                    % r47s = r13c_blk[iz]*r18o_blk[iz] 
+                    
+                    % capd47[iz] = ((r47/r47s-1e0) )*1e3
+                % end 
+            end 
         end
 
         % recording
@@ -728,7 +814,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         if (time>=rectime(cntrec))
             %        call recordprofile(cntrec )
             caco3_main.recordprofile(cntrec, global_var.nz, global_var.z, age, pt, global_var.msed, wi, rho, cc, ccx, dic, dicx, alk, alkx, co3, co3x, co3sat ...
-                , rcc, pro, o2x, oxco2, anco2, bc.om, global_var.mom, global_var.mcc, d13c_ocni, d18o_ocni, up,dwn, cnr, adf, global_var.nspcc, ptx, w, frt, prox, omx, d13c_blk, d18o_blk, folder)
+                , rcc, pro, o2x, oxco2, anco2, bc.om, global_var.mom, global_var.mcc, d13c_ocni, d18o_ocni, up,dwn, cnr, adf, global_var.nspcc, ptx, w, frt ...
+                , prox, omx, d13c_blk, d18o_blk, folder ...
+                ,d17o_blk,d14c_age,capd47,time_blk ...
+                )
 
             cntrec = cntrec + 1;
             if (cntrec == global_var.nrec+1)
@@ -744,7 +833,9 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
         % recording signals at 3 different depths (btm of mixed layer, 2xdepths of btm of mixed layer and btm depth of calculation domain)
         caco3_main.sigrec(w,file_sigmlyid,file_sigmlydid,file_sigbtmid,time,age,izrec,d13c_blk,d13c_blkc  ...
-            ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,global_var.mcc,rho,ptx,global_var.msed,izrec2,global_var.nz, global_var.def_size)
+            ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,global_var.mcc,rho,ptx,global_var.msed,izrec2,global_var.nz, global_var.def_size ...
+            ,d14c_age,capd47,time_blk,time_blkc,time_blkf,global_var.sporo ...
+            )
         %********************************************************************************************************************************  ADDED-END
 
         fprintf('error in frt: %17.16e \n', max(abs(frt - 1d0)));
@@ -757,44 +848,73 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
             omx_wtpc = omx.*global_var.mom./rho'*100d0;
             fprintf('~~~~ conc ~~~~ itr_om_o2 = %i \n', itr_om_o2);
-            fprintf('z, \t   OM, \t o2, \t cc, \t dic, \t alk, \t sed\n');
+            % fprintf('z         \tOM         \to2         \tcc         \tdic         \talk         \tsed         \n');
             % showing parameters relevant to burial on screen
-            for iz=1:interval:global_var.nz
-                fprintf('%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n', ...
-                    global_var.z(iz), omx_wtpc(iz), o2x(iz)*1d3, sum(ccx(iz,:)*global_var.mcc)/rho(iz)*100d0, dicx(iz)*1d3, alkx(iz)*1d3, ptx(iz)*global_var.msed/rho(iz)*100d0);
-            end
+            % fmt=[repmat('%.2e \t',1,7) '\n'];   % YK added
+            % for iz=1:interval:global_var.nz
+                % fprintf(fmt, ...
+                    % global_var.z(iz), omx_wtpc(iz), o2x(iz)*1d3, sum(ccx(iz,:).*transpose(global_var.mcc(:)))/rho(iz)*100d0 ...
+                    % , dicx(iz)*1d3, alkx(iz)*1d3, ptx(iz)*global_var.msed/rho(iz)*100d0);
+            % end
+            ccx_wtpc = sum(ccx(:,:).*transpose(global_var.mcc(:)),2)./rho(:)*100d0;
+            ptx_wtpc = ptx(:).*global_var.msed./rho(:)*100d0;
+            fmt=[repmat('%.2e \t',1,global_var.nz/interval) '\n'];
+            fprintf(strcat('z  :\t',fmt),global_var.z(1:interval:global_var.nz))
+            fprintf(strcat('om :\t',fmt),omx_wtpc(1:interval:global_var.nz))
+            fprintf(strcat('o2 :\t',fmt),o2x(1:interval:global_var.nz)*1e3)
+            fprintf(strcat('cc :\t',fmt),ccx_wtpc(1:interval:global_var.nz))
+            fprintf(strcat('dic:\t',fmt),dicx(1:interval:global_var.nz)*1e3)
+            fprintf(strcat('alk:\t',fmt),alkx(1:interval:global_var.nz)*1e3)
+            fprintf(strcat('sed:\t',fmt),ptx_wtpc(1:interval:global_var.nz))
 
             fprintf('   ..... multiple cc species ..... \n');
             %    write(dumchr(2),'(i0)') interval
             %    dumchr(1)="(i0.3,':',"//trim(adjustl(dumchr(2)))//"E11.3"//")"
+            fmt=[repmat('%.2e \t',1,global_var.nz/interval) '\n'];
+            
             for isp=1:global_var.nspcc
-                fprintf('\n');
-                fprintf('cc species: %i \n', isp);
-                %        print dumchr(1),isp,(ccx(iz,isp)*mcc/rho(iz)*100d0,iz=1,nz,nz/interval)
-                for iz=1:interval:global_var.nz
-                    fprintf('%17.16e \n',ccx(iz,isp)*global_var.mcc/rho(iz)*100d0);
-                end
+                % fprintf('\n');
+                % fprintf('cc species: %i \n', isp);
+                % for iz=1:interval:global_var.nz
+                    % fprintf('%.2e \n',ccx(iz,isp)*global_var.mcc(isp)/rho(iz)*100d0);
+                % end
+                fmt=[repmat('%.2e \t',1,global_var.nz/interval) '\n'];
+                fprintf(strcat('%03d:\t',fmt),isp,ccx(1:interval:global_var.nz,isp)*global_var.mcc(isp)/rho(iz)*100d0);
             end
 
             fprintf('++++ flx ++++ \n');
-            fprintf(' \t tflx \t adv \t dif \t omrxn \t ccrxn \t rain \t res \n')
-            fprintf('om :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', omtflx, omadv,  omdif, omdec,0d0,omrain, omres );
-            fprintf('o2 :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', o2tflx,0d0, o2dif,o2dec, 0d0,0d0,o2res );
-            fprintf('cc :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', sum(cctflx),  sum(ccadv), sum(ccdif),0d0,sum(ccdis), sum(ccrain), sum(ccres) );
-            fprintf('dic :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', dictflx, 0d0,dicdif, dicdec,  dicdis, 0d0,dicres );
-            fprintf('alk :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', alktflx, 0d0, alkdif, alkdec, alkdis, 0d0, alkres );
-            fprintf('sed :  \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', pttflx, ptadv,ptdif,  0d0, 0d0, ptrain, ptres );
+            fprintf(' \t       tflx \t   adv \t       dif \t     omrxn \t     ccrxn \t     ccrad \t      rain \t       res \n')
+            fmt=[repmat('%.2e \t',1,8) '\n'];
+            fprintf(strcat('om :  \t ',fmt) ...
+                , omtflx, omadv,  omdif, omdec,0d0,0d0,omrain, omres );
+            fprintf(strcat('o2 :  \t',fmt) ...
+                , o2tflx,0d0, o2dif,o2dec, 0d0,0d0,0d0,o2res );
+            fprintf(strcat('cc :  \t',fmt) ...
+                , sum(cctflx),  sum(ccadv), sum(ccdif),0d0,sum(ccdis), sum(ccrad), sum(ccrain), sum(ccres) );
+            fprintf(strcat('dic:  \t',fmt) ...
+                , dictflx, 0d0,dicdif, dicdec,  dicdis, 0d0, 0d0,dicres );
+            fprintf(strcat('alk:  \t',fmt) ...
+                , alktflx, 0d0, alkdif, alkdec, alkdis, alkrad, 0d0, alkres );
+            fprintf(strcat('sed:  \t',fmt) ...
+                , pttflx, ptadv,ptdif,  0d0, 0d0, 0d0, ptrain, ptres );
             fprintf('   ..... multiple cc species ..... \n');
             for isp=1:global_var.nspcc
-                fprintf('%i \t %17.16e \t %17.16e \t %17.16e \t  %17.16e \t %17.16e \t %17.16e \t %17.16e \n', isp,cctflx(isp), ccadv(isp), ccdif(isp),0d0,ccdis(isp), ccrain(isp), ccres(isp) );
+                fprintf(strcat('%03d:\t',fmt) ...
+                , isp,cctflx(isp), ccadv(isp), ccdif(isp),0d0,ccdis(isp), ccrad(isp), ccrain(isp), ccres(isp) );
             end
             fprintf('==== burial etc ==== \n');
-            fprintf('z, \t w, \t rho, \t frc \n');
+            % fprintf('z, \t w, \t rho, \t frc \n');
             % showing parameters relevant to burial on screen
-            for iz=1:interval:global_var.nz
-                fprintf('%17.16e \t %17.16e \t %17.16e \t %17.16e \n', ...
-                    global_var.z(iz),w(iz), rho(iz), frt(iz));
-            end
+            % fmt=[repmat('%.2e \t',1,4) '\n'];
+            % for iz=1:interval:global_var.nz
+                % fprintf(fmt, ...
+                    % global_var.z(iz),w(iz), rho(iz), frt(iz));
+            % end
+            fmt=[repmat('%.2e \t',1,global_var.nz/interval) '\n'];
+            fprintf(strcat('z  :\t',fmt),global_var.z(1:interval:global_var.nz))
+            fprintf(strcat('w  :\t',fmt),w(1:interval:global_var.nz))
+            fprintf(strcat('rho:\t',fmt),rho(1:interval:global_var.nz))
+            fprintf(strcat('frc:\t',fmt),frt(1:interval:global_var.nz))
 
             fprintf('\n');
             fprintf('\n');
@@ -847,8 +967,10 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     % end
 
     file_tmp = fopen(str_lys,'at+');    % the 4th column is the plotted CaCO3 wt%!
-    fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ', 1d6*(co3i*1d3-co3sat), sum(ccx(1,:))*global_var.mcc/rho(1)*100d0, frt(1), ...
-        sum(ccx(global_var.nz,:))*global_var.mcc/rho(global_var.nz)*100d0, frt(global_var.nz),sum(ccx(izml,:))*global_var.mcc/rho(izml)*100d0, frt(izml));
+    fprintf(file_tmp,'%17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \t %17.16e \n ' ...
+        , 1d6*(co3i*1d3-co3sat), sum(ccx(1,:).*transpose(global_var.mcc(:)))/rho(1)*100d0, frt(1), ...
+        sum(ccx(global_var.nz,:).*transpose(global_var.mcc(:)))/rho(global_var.nz)*100d0 ...
+        , frt(global_var.nz),sum(ccx(izml,:).*transpose(global_var.mcc(:)))/rho(izml)*100d0, frt(izml));
     fclose(file_tmp);
 
     file_tmp = fopen(str_ccbur,'at+');
