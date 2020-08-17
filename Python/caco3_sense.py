@@ -16,6 +16,7 @@ oxonly      = False             # Oxic only for OM degradation?
 runmode     = 'sense'           # simulation mode
 co2chem     = 'co2sys'          # co2 chemistry
 timetrack   = False             # tracking model time as a proxy? 
+reading     = False             # use external input data? 
 sparse      = False             # use sparse matrix solver?
 showiter    = False             # show every iteration step?
 rrlist      = np.array([0.0,0.5,0.6666,1.0,1.5])
@@ -30,4 +31,4 @@ for i in range(nz):
                 if l==0:oxonly=True  
                 if l==1:oxonly=False
                 caco3_main(ccflxi,om2cc,dep,dt,fl,biot
-                           ,oxonly,runmode,co2chem,sparse,showiter,timetrack)
+                           ,oxonly,runmode,co2chem,sparse,showiter,timetrack,reading)

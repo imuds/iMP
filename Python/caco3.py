@@ -4,6 +4,7 @@ signal tracking diagenesis model
 """
 import numpy as np
 import os
+import shutil
 try:
     from scipy.sparse import lil_matrix
     from scipy.sparse.linalg import spsolve
@@ -20,7 +21,7 @@ except:
 
 np.set_printoptions(
     linewidth = 120
-    ,formatter={'float': '{:.2e}'.format}
+    ,formatter={'float': '{:11.2e}'.format}
     )  
 
 def calceq1(tmp,sal,dep):
@@ -1887,8 +1888,8 @@ def make_transmx(
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     zml = np.zeros(nspcc+2)
     zml[:]=zmlref
-    # zrec = 1.1*np.max(zml)
-    zrec = 1.15*np.max(zml)
+    zrec = 1.1*np.max(zml)
+    if any(labs): zrec = 1.15*np.max(zml)
     zrec2 = 2.0*np.max(zml)
     if size:
         zml[2+0]=20.
@@ -2283,6 +2284,60 @@ def signal_flx(time,time_spn,time_trs,time_aft
     
     return d13c_ocn,d18o_ocn,d13c_sp,d18o_sp,ccflx,capd47_ocn
     
+def dic_iso(  
+    d13c_ocn,d18o_ocn,dici  
+    ,r14ci,capd47_ocn,c14age_ocn       
+    ,r13c_pdb,r18o_pdb,r17o_pdb  
+    ,nspcc 
+    ):
+    # DIC isotopologues calculation  
+    tol=1e-12
+    # only when directly tracking isotopes 
+    r13c_ocn = d2r(d13c_ocn,r13c_pdb) 
+    r12c_ocn = 1e0
+    r14c_ocn = r14ci*np.exp(-c14age_ocn/8033e0) 
+    f12c_ocn = r12c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+    f13c_ocn = r13c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+    f14c_ocn = r14c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
+    r18o_ocn = d2r(d18o_ocn,r18o_pdb)
+    r16o_ocn = 1e0
+    r17o_ocn = ((17e0-16e0)/(18e0-16e0)*18e0*16e0/(17e0*16e0)*(r18o_ocn/r18o_pdb-1e0)+1e0)*r17o_pdb
+    f16o_ocn = r16o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+    f17o_ocn = r17o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+    f18o_ocn = r18o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
+    nmx = 5   
+    amx = np.zeros((nmx,nmx),dtype=np.float64)
+    ymx = np.zeros(nmx,dtype=np.float64)
+    amx[:,:] = 0e0
+    ymx[:] = 0e0
+    amx[0,0]=1e0
+    amx[0,1]=1e0
+    ymx[0]=f12c_ocn*dici 
+    amx[1,2]=1e0
+    amx[1,3]=1e0
+    ymx[1]=f13c_ocn*dici 
+    amx[2,0]=3e0
+    amx[2,1]=2e0
+    amx[2,2]=3e0
+    amx[2,3]=2e0
+    amx[2,4]=3e0*f16o_ocn
+    ymx[2]=3e0*f16o_ocn*dici
+    amx[3,3]=1e0
+    amx[3,0]=-1e0*r13c_ocn*r18o_ocn*(capd47_ocn*1e-3+1e0)
+    amx[4,4]=1e0
+    ymx[4]=f14c_ocn*dici
+    kai = np.linalg.solve(amx, ymx)
+    ymx[:]=kai[:].copy()
+    dic = np.zeros(nspcc,dtype=np.float64)
+    dic[0:nspcc] = ymx
+    if np.abs((np.sum(dic[0:nspcc])-dici)/dici)>tol:
+        print 'error in assignment of dic'
+        print dic[0:nspcc]
+        print sum(dic[0:nspcc]),dici
+        input()
+    
+    return dic
+    
 def bdcnd(time,time_spn,time_trs,time_aft,depi,biotest,depf):
     if time <= time_spn:
         dep = depi
@@ -2308,7 +2363,7 @@ def r2d(ratio,rstd):
 def d2r(delta,rstd):
     return (delta*1e-3+1e0)*rstd
 
-def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack):    
+def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack,reading):    
     # ------------------- parameter inputs
     nz = np.int32(100)              # total grid number 
     nspcc = np.int32(4)             # caco3 species 
@@ -2398,6 +2453,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     r18o_pdb = 0.0020672 ; r17o_pdb = 0.0003859 ; r13c_pdb = 0.011180
     r14ci = 1.2e-12 # c14/c12 in modern, Aloisi et al. 2004, citing Kutschera 2000
     k14ci = 1e0/8033e0 # [yr-1], Aloisi et al. 2004
+    c14age_cc = 0e3   # 14C-age of raining caco3
     # mixing properties 
     nobio = np.zeros(nspcc+2,dtype=bool)
     turbo2 = np.zeros(nspcc+2,dtype=bool)
@@ -2405,6 +2461,49 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     if allturbo2: turbo2[:] = True
     if alllabs: labs[:] = True
     if allnobio: nobio[:] = True
+    if reading:
+        d13c_ocni = -1e100
+        d13c_ocnf = 1e100
+        d18o_ocni = -1e100
+        d18o_ocnf = 1e100
+        capd47_ocni = -1e100
+        capd47_ocnf = 1e100
+        c14age_ocni = -1e100
+        c14age_ocnf = 1e100
+        time_max = -1e100
+        time_min = 1e100
+        imp_input = np.loadtxt('../input/imp_input.in')
+        time_max = max(time_max,imp_input[:,0].max())
+        time_min = min(time_min,imp_input[:,0].min())
+        d13c_ocni = max(d13c_ocni,imp_input[:,13].max())
+        d13c_ocnf = min(d13c_ocnf,imp_input[:,13].min())
+        d18o_ocni = max(d18o_ocni,imp_input[:,14].max())
+        d18o_ocnf = min(d18o_ocnf,imp_input[:,14].min())
+        capd47_ocni = max(capd47_ocni,imp_input[:,15].max())
+        capd47_ocnf = min(capd47_ocnf,imp_input[:,15].min())
+        c14age_ocni = max(c14age_ocni,imp_input[:,16].max())
+        c14age_ocnf = min(c14age_ocnf,imp_input[:,16].min())
+        if (d13c_ocni == d13c_ocnf):
+            d13c_ocni = d13c_ocni + 1e0
+            d13c_ocnf = d13c_ocnf - 1e0 
+        if (d18o_ocni == d18o_ocnf): 
+            d18o_ocni = d18o_ocni + 1e0
+            d18o_ocnf = d18o_ocnf - 1e0
+        if (capd47_ocni == capd47_ocnf): 
+            capd47_ocni = capd47_ocni + 1e0
+            capd47_ocnf = capd47_ocnf - 1e0
+        if (c14age_ocni == c14age_ocnf):
+            c14age_ocni = c14age_ocni + 1e0
+            c14age_ocnf = c14age_ocnf - 1e0
+        if (time_max==time_min):
+            time_max = time_max + 1e0
+            time_min=time_min-1e0
+        time_max = time_max + (time_max - time_min)*1e-2
+        time_min = time_min - (time_max - time_min)*1e-2
+        time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti = imp_input[0,:]
+        om2cc = omflx/ccflxi
+        dti2 = dti
+        depi2 = dep 
     #  preparing directory to store results 
     workdir = homedir+'/imp_output/python/'
     workdir += fl +'/profiles/'
@@ -2478,29 +2577,42 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     #---------------
     zox = np.float64(10.)
     #------ recording time 
-    # ++++ tracking experiment
-    time_spn = np.float64(ztot/wi*50.)  # spinup
-    time_trs = np.float64(50e3)   # transient event 
-    time_aft = np.float64(time_trs *3.)
-    if sense:
-        time_trs = np.float64(0.)
-        time_aft = np.float64(0.)
-    if biotest:
-        time_trs = np.float64(5e3)
-        time_aft = np.float64(time_trs*10.)
-    rectime = np.zeros(nrec)
-    for itrec in range(0,np.int32(nrec/3)):
-        rectime[itrec]=(itrec+1)*time_spn/float(nrec/3.)
-    for itrec in range(np.int32(nrec/3),np.int32(nrec*2/3)):
-        rectime[itrec]=rectime[np.int32(nrec/3)-1]+(itrec-nrec/3+1)*time_trs/float(nrec/3.)
-    for itrec in range(np.int32(nrec*2/3),nrec):
-        rectime[itrec]=rectime[np.int32(nrec/3*2)-1]+(itrec-nrec/3*2+1)*time_aft/float(nrec/3.)
-    cntrec=0
-    np.savetxt(workdir+'rectime.txt',rectime)
-    depi = 3.5
-    depf = dep
-    flxfini = 0.5
-    flxfinf = 0.9
+    if not reading:
+        # ++++ tracking experiment
+        time_spn = np.float64(ztot/wi*50.)  # spinup
+        time_trs = np.float64(50e3)   # transient event 
+        time_aft = np.float64(time_trs *3.)
+        if sense:
+            time_trs = np.float64(0.)
+            time_aft = np.float64(0.)
+        if biotest:
+            time_trs = np.float64(5e3)
+            time_aft = np.float64(time_trs*10.)
+        rectime = np.zeros(nrec)
+        for itrec in range(0,np.int32(nrec/3)):
+            rectime[itrec]=(itrec+1)*time_spn/float(nrec/3.)
+        for itrec in range(np.int32(nrec/3),np.int32(nrec*2/3)):
+            rectime[itrec]=rectime[np.int32(nrec/3)-1]+(itrec-nrec/3+1)*time_trs/float(nrec/3.)
+        for itrec in range(np.int32(nrec*2/3),nrec):
+            rectime[itrec]=rectime[np.int32(nrec/3*2)-1]+(itrec-nrec/3*2+1)*time_aft/float(nrec/3.)
+        cntrec=0
+        np.savetxt(workdir+'rectime.txt',rectime)
+        depi = 3.5
+        depf = dep
+        flxfini = 0.5
+        flxfinf = 0.9
+        d13c_ocni = 2.
+        d13c_ocnf = -1.
+        d18o_ocni = 1.
+        d18o_ocnf = -1.
+        capd47_ocni = 0.6
+        capd47_ocnf = 0.5
+        time_min = 0.
+        time_max =  (time_spn+time_trs+time_aft)*1.1   
+    else:
+        rectime = np.loadtxt('../input/rectime.in')
+        np.savetxt(workdir+'rectime.txt',rectime)
+        cntrec = 0  # rec number (increasing with recording done )
     #//////// isotopes //////////
     d13c_blk = np.zeros(nz,dtype=np.float64)
     d13c_blkc = np.zeros(nz,dtype=np.float64)
@@ -2517,12 +2629,6 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     time_blk = np.zeros(nz,dtype=np.float64)
     time_blkf = np.zeros(nz,dtype=np.float64)
     time_blkc = np.zeros(nz,dtype=np.float64)
-    d13c_ocni = 2.
-    d13c_ocnf = -1.
-    d18o_ocni = 1.
-    d18o_ocnf = -1.
-    capd47_ocni = 0.6
-    capd47_ocnf = 0.5
     d13c_sp = np.zeros(nspcc)
     d18o_sp = np.zeros(nspcc)
     time_sp = np.zeros(nspcc)
@@ -2567,8 +2673,6 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 d13c_sp[3+4*isp]=d13c_ocnf
                 d18o_sp[3+4*isp]=d18o_ocnf
     # ---- model time
-    time_min = 0.
-    time_max =  (time_spn+time_trs+time_aft)*1.1   
     time_sp[0:nspcc/2] = time_max
     time_sp[0+nspcc/2:nspcc] = time_min 
     #!!!!!!!!! TRANSITION MATRIX !!!!!!!!!!!!!!!!!!!
@@ -2655,49 +2759,143 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     warmup_done = False
     nt_spn=800;nt_trs=5000;nt_aft=1000
     dt_save = dt
+    if reading:
+        shutil.copy2('../input/imp_input.in', workdir+'imp_input.in')
+        imp_input = np.loadtxt(workdir+'imp_input.in')
     while True: # time loop 
-        if not sense:
-            nt_spn=400
-            if biotest: nt_spn=40;nt_trs=500;nt_aft=100
-            if warmup_done: 
-                dt = timestep(time,time_spn,time_trs,time_aft
-                    ,nt_spn,nt_trs,nt_aft
-                    ,flg_restart,dt,biotest
-                    ) 
-            elif not warmup_done:
-                # new ver. bulit-in spinup
-                dt_max = 1e4
-                if (it ==1) : 
-                    dt = 1e-2
+        if not reading:
+            if not sense:
+                nt_spn=400
+                if biotest: nt_spn=40;nt_trs=500;nt_aft=100
+                if warmup_done: 
+                    dt = timestep(time,time_spn,time_trs,time_aft
+                        ,nt_spn,nt_trs,nt_aft
+                        ,flg_restart,dt,biotest
+                        ) 
+                elif not warmup_done:
+                    # new ver. bulit-in spinup
+                    dt_max = 1e4
+                    if (it ==1) : 
+                        dt = 1e-2
+                    else: 
+                        if (dt<dt_max): dt = dt*1.01e0
+                    # old ver. bulit-in spinup
+                    # if it<11:  
+                        # nt_spn = 80000
+                    # elif it<111:
+                        # nt_spn = 8000
+                    # else: 
+                        # warmup_done = True
+                        # time = 0.
+                        # it = 1
+                        # continue
+                # dt = timestep(time,time_spn,time_trs,time_aft
+                    # ,nt_spn,nt_trs,nt_aft
+                    # ,flg_restart,dt,biotest
+                    # ) 
+                d13c_ocn,d18o_ocn,d13c_sp,d18o_sp,ccflx,capd47_ocn = signal_flx(time,time_spn,time_trs,time_aft
+                    ,d13c_ocni,d18o_ocni,d13c_ocnf,d18o_ocnf,ccflxi,ccflx,track2,size,biotest
+                    ,d13c_sp,d18o_sp,flxfini,flxfinf,nspcc,it
+                    ,isotrack,r13c_pdb,r18o_pdb,r14ci,capd47_ocni,capd47_ocnf,tol
+                    ,timetrack,time_min,time_max
+                    )
+                dep = bdcnd(time,time_spn,time_trs,time_aft,depi,biotest,depf)
+            else:
+                warmup_done = True
+                dt = dt_save
+                d13c_ocn = 0. 
+                d18o_ocn = 0.
+                capd47_ocn = 0.
+        
+        elif reading: 
+            if warmup_done:
+                time,temp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti = imp_input[it-1,:]
+                dt = dti
+            elif not warmup_done: 
+                stepwarm = False
+                if stepwarm:
+                    time = 0e0
+                    if it ==1: 
+                        dt = 1e-2
+                    else: 
+                        dt_dt = 1e-1
+                        dt_dt_max = 1e-1
+                        dt_max = 1e4
+                        if dt_dt < dt_dt_max: dt_dt = dt_dt*(1e0+dt_dt)
+                        dt_dt = max(dt_dt,1e-3)
+                        if dt < dt_max: dt = dt*(1e0+dt_dt)
                 else: 
-                    if (dt<dt_max): dt = dt*1.01e0
-                # old ver. bulit-in spinup
-                # if it<11:  
-                    # nt_spn = 80000
-                # elif it<111:
-                    # nt_spn = 8000
-                # else: 
-                    # warmup_done = True
-                    # time = 0.
-                    # it = 1
-                    # continue
-            # dt = timestep(time,time_spn,time_trs,time_aft
-                # ,nt_spn,nt_trs,nt_aft
-                # ,flg_restart,dt,biotest
-                # ) 
-            d13c_ocn,d18o_ocn,d13c_sp,d18o_sp,ccflx,capd47_ocn = signal_flx(time,time_spn,time_trs,time_aft
-                ,d13c_ocni,d18o_ocni,d13c_ocnf,d18o_ocnf,ccflxi,ccflx,track2,size,biotest
-                ,d13c_sp,d18o_sp,flxfini,flxfinf,nspcc,it
-                ,isotrack,r13c_pdb,r18o_pdb,r14ci,capd47_ocni,capd47_ocnf,tol
-                ,timetrack,time_min,time_max
-                )
-            dep = bdcnd(time,time_spn,time_trs,time_aft,depi,biotest,depf)
-        else:
-            warmup_done = True
-            dt = dt_save
-            d13c_ocn = 0. 
-            d18o_ocn = 0.
-            capd47_ocn = 0.
+                    time = 0e0
+                    if it<11: 
+                        dt = 1e2
+                    elif it<111:
+                        dt = 1e3
+                    elif it<1111:
+                        dt = 1e4
+                    elif it<11111:
+                        dt = 1e5
+                        if biot=='labs': 
+                            it=1
+                            warmup_done = True
+                            continue
+                    else:
+                        warmup_done = True
+                        it = 1
+                        continue
+            print
+            print '%-11.11s'*8 % ('time','temp','sal','dep','dici','alki','o2i','ccflxi')
+            print '%-11.2e'*8 % (time,temp,sal,dep,dici,alki,o2i,ccflxi)
+            print '%-11.11s'*8 % ('omflx','detflx','flxfin','d13c_ocn','d18o_ocn','capd47_ocn','14C_age','dti')
+            print '%-11.2e'*8 % (omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti)
+            print '%-11.11s'*2 % ('zsr','aomflx')
+            print '%-11.2e'*2 % (zsrin,aomflxin)
+            print 
+            # 800 continue
+            if not isotrack:
+                flxfrc = np.zeros(nspcc,dtype=np.float64)
+                flxfrc[0:2] = np.abs(d13c_ocnf-d13c_ocn)/(np.abs(d13c_ocnf-d13c_ocn)+np.abs(d13c_ocni-d13c_ocn))  # contribution from d13c_ocni
+                flxfrc[2:4] = np.abs(d13c_ocni-d13c_ocn)/(np.abs(d13c_ocnf-d13c_ocn)+np.abs(d13c_ocni-d13c_ocn))  # contribution from d13c_ocnf
+                flxfrc2 = np.zeros(nspcc,dtype =np.float64)
+                flxfrc2[0] = np.abs(d18o_ocnf-d18o_ocn)/(np.abs(d18o_ocnf-d18o_ocn)+np.abs(d18o_ocni-d18o_ocn))  # contribution from d18o_ocni
+                flxfrc2[2] = np.abs(d18o_ocnf-d18o_ocn)/(np.abs(d18o_ocnf-d18o_ocn)+np.abs(d18o_ocni-d18o_ocn))  # contribution from d18o_ocni
+                flxfrc2[1] = np.abs(d18o_ocni-d18o_ocn)/(np.abs(d18o_ocnf-d18o_ocn)+np.abs(d18o_ocni-d18o_ocn))  # contribution from d18o_ocnf
+                flxfrc2[3] = np.abs(d18o_ocni-d18o_ocn)/(np.abs(d18o_ocnf-d18o_ocn)+np.abs(d18o_ocni-d18o_ocn))  # contribution from d18o_ocnf
+                ccflx[:] = 0e0
+                for isp in range(4):
+                    flxfrc2[isp] = flxfrc2[isp]*flxfrc[isp]
+                    ccflx[isp] = ccflxi*flxfrc2[isp]
+                if np.abs(ccflxi - np.sum(ccflx))/ccflxi > tol:
+                    print 'error in calculation in flux'
+                    input()
+                if size: 
+                    for isp in range(4,8):
+                        ccflx[isp] = ccflx[isp-4]*(1e0-flxfin)
+                    for isp in range(0,4):
+                        ccflx[isp] = ccflx[isp]*flxfin
+            else: 
+                ccflx[:] = 0e0
+                ccflx[0:5] = dic_iso(  
+                    d13c_ocn,d18o_ocn,ccflxi  
+                    ,r14ci,capd47_ocn,c14age_cc   
+                    ,r13c_pdb,r18o_pdb,r17o_pdb  
+                    ,5  
+                    )
+            
+            if timetrack:
+                flxfrc3 = np.zeros(nspcc,dtype=np.float64)
+                flxfrc3[0:nspcc/2] = np.abs(time_min-time)/(np.abs(time_min-time)+np.abs(time_max-time))  # contribuion from max age class 
+                flxfrc3[0+nspcc/2:nspcc] = np.abs(time_max-time)/(np.abs(time_min-time)+np.abs(time_max-time)) # contribution from min age class 
+                if np.abs(np.sum(ccflx)/ccflxi - 1e0) > tol: 
+                    print 'flx calc in error with including time-tracking pre',sum(ccflx),ccflxi 
+                    input()
+                for isp in range(nspcc/2,nspcc):
+                    ccflx[isp]=flxfrc3[isp]*ccflx[isp-nspcc/2]
+                for isp in range(0,nspcc/2):
+                    ccflx[isp]=flxfrc3[isp]*ccflx[isp]
+                if np.abs(np.sum(ccflx)/ccflxi - 1e0)>tol: 
+                    print 'flx calc in error with including time-tracking aft',sum(ccflx),ccflxi 
+                    input()
+        
         d13c_flx = np.sum(d13c_sp[:]*ccflx[:])/ccflxi
         d18o_flx = np.sum(d18o_sp[:]*ccflx[:])/ccflxi
         if not (track2 or isotrack):
@@ -2717,16 +2915,30 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         # diffusion coeff etc. 
         dif_dic,dif_alk,dif_o2,kom,kcc,co3sat,krad = coefs(cai,temp,nz,nspcc,poro,komi,kcci,size,sal,dep,isotrack,i14c,k14ci,kie,i13c18o,timetrack)
         
-        if it==1:
-            print >> file_bound, '#time  d13c_ocn  d18o_ocn, D47, fluxes of cc:'\
-                  ,np.linspace(1,nspcc,nspcc),'temp  dep  sal  dici  alki  o2i'
-        if not size:
-            print>> file_bound, time, d13c_ocn, d18o_ocn, capd47_ocn, str(ccflx)[1:-1]\
-                    ,temp, dep, sal,dici,alki, o2i
-        else:
-            print>> file_bound, time, d13c_ocn, d18o_ocn, capd47_ocn\
-                    , np.sum(ccflx[0:4]),np.sum(ccflx[4:8]),str(ccflx)[1:-1]\
-                    ,temp, dep, sal,dici,alki, o2i
+        if warmup_done:
+            if it==1:
+                # print >> file_bound, '#time  d13c_ocn  d18o_ocn, D47, fluxes of cc:'\
+                      # ,np.linspace(1,nspcc,nspcc),'temp  dep  sal  dici  alki  o2i'
+                # print >> file_bound, '#time  d13c_ocn  d18o_ocn, D47, fluxes of cc temp  dep  sal  dici  alki  o2i'
+                tmp_str = '#time  d13c_ocn  d18o_ocn, D47, fluxes of cc: '
+                tmp_str2 = ['%i' % (i) for i in np.linspace(1,nspcc,nspcc)]
+                tmp_str2 = ' '.join(tmp_str2)
+                tmp_str += tmp_str2 + ' temp  dep  sal  dici  alki  o2i'
+                file_bound.write(tmp_str+'\n')
+            if not size:
+                print>> file_bound, time, d13c_ocn, d18o_ocn, capd47_ocn, str(ccflx)[1:-1]\
+                        ,temp, dep, sal,dici,alki, o2i
+            else:
+                tmp_array = np.array([time, d13c_ocn, d18o_ocn, capd47_ocn, np.sum(ccflx[0:4]),np.sum(ccflx[4:8])])
+                tmp_array = np.concatenate([tmp_array,ccflx])
+                tmp_array = np.concatenate([tmp_array,np.array([temp, dep, sal,dici,alki, o2i])])
+                tmp_str = ['%-11.4e' % (i) for i in tmp_array]
+                tmp_str = ''.join(tmp_str)
+                # print>> file_bound, time, d13c_ocn, d18o_ocn, capd47_ocn\
+                        # , np.sum(ccflx[0:4]),np.sum(ccflx[4:8]),str(ccflx)[1:-1]\
+                        # ,temp, dep, sal,dici,alki, o2i
+                # print>>file_bound, str_tmp
+                file_bound.write(tmp_str+'\n')
         itr_w = 0
         err_w_min = 1e4
 #        itr_f = 0
@@ -3100,9 +3312,11 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         print  'sed:',ptx[0:nz:np.int32(nz/5)]*msed/rho[0:nz:np.int32(nz/5)]*100e0
         print  '   ..... multiple cc classes ..... '
         for isp in range(nspcc ):
-            print '{:03}'.format(isp+1),ccx[0:nz:np.int32(nz/5),isp]*mcc[isp]/rho[0:nz:np.int32(nz/5)]*100e0
+            print '{:03}:'.format(isp+1),ccx[0:nz:np.int32(nz/5),isp]*mcc[isp]/rho[0:nz:np.int32(nz/5)]*100e0
         print  '++++ flx ++++'
-        print  'flx:',np.array(['tflx   ','adv    ','dif    ','omrxn ','ccrxn ','ccrad ','rain   ','res    '])
+        # fmt = 'flx: [       '+'%-11.11s'*8+']'
+        # print fmt % ('tflx','adv','dif','omrxn','ccrxn','ccrad','rain','res')
+        print 'flx: [       tflx       adv        dif        omrxn       ccrxn       ccrad       rain         res   ]'
         print  'om :',np.array([ omtflx, omadv,  omdif, omdec,0e0,0e0,omrain, omres])
         print  'o2 :',np.array([o2tflx,0e0, o2dif,o2dec, 0e0,0e0,0e0,o2res])
         print  'cc :',np.array([np.sum(cctflx[:]),  np.sum(ccadv[:]), np.sum(ccdif[:]),0e0,np.sum(ccdis[:])
@@ -3112,7 +3326,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
         print  'sed:',np.array([pttflx, ptadv,ptdif,  0e0, 0e0, 0e0, ptrain, ptres])
         print  '   ..... multiple cc classes ..... '
         for isp in range(nspcc ):
-            print  '{:03}'.format(isp+1), np.array([cctflx[isp], ccadv[isp], ccdif[isp],0e0,ccdis[isp], ccrad[isp], ccrain[isp], ccres[isp]])
+            print  '{:03}:'.format(isp+1), np.array([cctflx[isp], ccadv[isp], ccdif[isp],0e0,ccdis[isp], ccrad[isp], ccrain[isp], ccres[isp]])
         print '==== burial etc ===='
         print  'z  :',z[0:nz:np.int32(nz/5)]
         print  'w  :',w[0:nz:np.int32(nz/5)]
@@ -3237,39 +3451,43 @@ def getinput():
     print ''
     print '*** just press [enter] to choose default parameter ***'
     print ''
-    co2chem     = raw_input('Enter how to calculate CO2 chemistry [default= co2] (co2 or mocsy or co2sys): ')  
-    ccflxi      = raw_input('Enter CaCO3 rain flux in mol cm-2 yr-1 [default= 12e-6]: ')  
-    om2cc       = raw_input('Enter OM/CaCO3 rain ratio [default= 0.7]: ') 
-    dep         = raw_input('Enter water depth in km [default= 3.5]: ')  
-    dt          = raw_input('Enter time step in yr [default= 1e3]: ')  
     fl          = raw_input('Enter simulation name [default= noname]: ') 
+    co2chem     = raw_input('Enter how to calculate CO2 chemistry [default= co2] (co2 or mocsy or co2sys): ')  
     biot        = raw_input('Enter bioturbation style [default= fickian] (nobio, fickian, labs or turbo2): ') 
     oxonly      = raw_input('Oxic only for OM degradation [default= False]? (True or False): ') 
-    runmode     = raw_input('Enter simulation mode [default= diss. exp.] (sense, diss. exp., size, biotest, track2, isotrack or iso_kie): ') 
     timetrack   = raw_input('Want to track model time [default= False]? (True or False): ') 
     sparse      = raw_input('Want to use sparse matrix solver [default= False]? (True or False): ') 
     showiter    = raw_input('Want to see iteration processes [default= False]? (True or False): ') 
+    reading     = raw_input('Use external input data [default= True] (True or False): ')  
+    if len(reading)==0: reading = True                # default 
+    else: reading  = eval(reading)
+    if not reading:
+        ccflxi      = raw_input('Enter CaCO3 rain flux in mol cm-2 yr-1 [default= 12e-6]: ')  
+        om2cc       = raw_input('Enter OM/CaCO3 rain ratio [default= 0.7]: ') 
+        dep         = raw_input('Enter water depth in km [default= 3.5]: ')  
+        dt          = raw_input('Enter time step in yr [default= 1e3]: ')  
+        runmode     = raw_input('Enter simulation mode [default= diss. exp.] (sense, diss. exp., size, biotest, track2, isotrack or iso_kie): ') 
+        if len(ccflxi)==0: ccflxi = 12e-6                # default
+        else: ccflxi = eval(ccflxi)
+        if len(om2cc)==0: om2cc = 0.7                   # default
+        else: om2cc = eval(om2cc)
+        if len(dep)==0: dep = 3.5                     # default 
+        else: dep = eval(dep)
+        if len(dt)==0: dt = 1000.                    # default
+        else: dt = eval(dt)
+    else:
+        ccflxi = 12e-6; om2cc = 0.7; dep = 3.5; dt = 1e3
+        tmp_in     = raw_input('Want to track more than 2 proxies? [default= None] (None, size or isotrack): ')
+        if len(tmp_in)==0: runmode = ''
+        else: runmode = tmp_in
+        if runmode == 'isotrack':
+            tmp_in     = raw_input('Want to try kie in isotopologue tracking? [default= False] (True or False): ') 
+            if  tmp_in =='True': runmode = 'iso_kie'
     print ''
     print '*** calculation starts ***'
     print ''
     if len(co2chem)==0:               # no input
         co2chem = 'co2'               # default
-    if len(ccflxi)==0:                # no input
-        ccflxi = 12e-6                # default
-    else:
-        ccflxi = eval(ccflxi)
-    if len(om2cc)==0:                 # no input
-        om2cc = 0.7                   # default
-    else:
-        om2cc = eval(om2cc)
-    if len(dep)==0:                   # no input
-        dep = 3.5                     # default 
-    else:
-        dep = eval(dep)
-    if len(dt)==0:                    # no input
-        dt = 1000.                    # default
-    else:
-        dt = eval(dt)
     if len(fl)==0:                    # no input
         fl = 'noname'                 # default or you can specify the name here
     if len(oxonly)==0:                # no input
@@ -3288,12 +3506,9 @@ def getinput():
         showiter = False              # default 
     else:
         showiter = eval(showiter)
-    # co2chem = 'co2'
-    # co2chem = 'co2h2o'              # dic = co2+hco3+co3; alk = hco3+2*co3+oh-h
-    # sparse = True
-    # showiter = False
-    return ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack
+        
+    return ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack,reading
 
 if __name__ == '__main__':
-    ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack = getinput()
-    caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack)
+    ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack,reading = getinput()
+    caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showiter,timetrack,reading)
