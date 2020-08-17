@@ -536,6 +536,13 @@ mcc(i12c18o) = 40.078d0+12d0+16d0*2d0+18d0
 mcc(i13c16o) = 40.078d0+13d0+16d0*3d0
 mcc(i13c18o) = 40.078d0+13d0+16d0*2d0+18d0
 mcc(i14c) = 40.078d0+14d0+16d0*3d0
+#ifdef timetrack 
+mcc(i12c16o+nspcc/2) = 40.078d0+12d0+16d0*3d0
+mcc(i12c18o+nspcc/2) = 40.078d0+12d0+16d0*2d0+18d0
+mcc(i13c16o+nspcc/2) = 40.078d0+13d0+16d0*3d0
+mcc(i13c18o+nspcc/2) = 40.078d0+13d0+16d0*2d0+18d0
+mcc(i14c+nspcc/2) = 40.078d0+14d0+16d0*3d0
+#endif 
 #endif 
 mvom = mom/rhoom  ! om
 mvsed = msed/rhosed ! clay 
