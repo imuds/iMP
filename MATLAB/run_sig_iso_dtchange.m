@@ -96,6 +96,13 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
 
     tmp = bc.tmp;   % 2.0;
     sal = bc.sal;   % 35.0;
+    
+    
+    if global_var.def_dispwarnings
+        warning('on','all');
+    else
+        warning('off','all');
+    end
 
     %            bc.ccflxi = 60d-6;      % mol (CaCO3) cm-2 yr-1 - caco3 flux
     %            global_var.om2cc = 0.7d0;   % rain ratio of organic matter to calcite
@@ -168,19 +175,26 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     d18o_ocnf = -1d0; % ocean d18o value with maximum change
     capd47_ocni = 0.6; % D47 initial 
     capd47_ocnf = 0.5; % D47 final
+    % for time tracking 
+    time_min = 0d0;
+    time_max =  (time_spn+time_trs+time_aft)*1.1d0;
+    time_sp = zeros(1,global_var.nspcc);
+    time_sp(1:global_var.nspcc/2) = time_max;
+    time_sp(1+global_var.nspcc/2:global_var.nspcc) = time_min;
     % Dominik - initialize ocean d13c, d18o
     d13c_ocn = 0d0;
     d18o_ocn = 0d0;
     % end-member signal assignment
     % call sig2sp_pre()
-    [d13c_sp,d18o_sp] = caco3_main.sig2sp_pre(d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf, global_var.def_sense, global_var.def_size, global_var.nspcc);
+    [d13c_sp,d18o_sp] = caco3_main.sig2sp_pre(d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf...
+        , global_var.def_sense, global_var.def_size, global_var.nspcc,global_var.def_timetrack);
 
 
 
     % % make transition matrix
     [trans,izrec,izrec2,izml,mix_type.nonlocal] = ...
         caco3_main.make_transmx(mix_type.labs,global_var.nspcc,mix_type.turbo2,mix_type.nobio,global_var.dz ...
-            ,global_var.sporo,global_var.nz,global_var.z, global_var.zml_ref, global_var.def_size,folder);
+            ,global_var.sporo,global_var.nz,global_var.z, global_var.zml_ref, global_var.def_size,folder,global_var.def_timetrack);
 
     [keq1    ,keq2   ,keqcc  ,co3sat, dif_dic    ,dif_alk    ,dif_o2 ,kom, kcc, krad, global_var] = caco3_main.coefs(tmp,sal,dep, global_var);
 
@@ -297,7 +311,8 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp,capd47_ocn] = ...
                 caco3_main.signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
                 ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest ...
-                ,capd47_ocni,capd47_ocnf,global_var.def_isotrack,global_var.tol,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r14ci...
+                ,capd47_ocni,capd47_ocnf,global_var.def_isotrack,global_var.tol,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r14ci,global_var.def_timetrack...
+                ,time_min,time_max...
                 );
 
             [dep] = caco3_main.bdcnd(time, time_spn, time_trs, depi, depf, global_var.def_biotest);
@@ -322,6 +337,16 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                 error(msg)
             end
         end
+    
+        if global_var.def_timetrack    
+            time_flx = sum(time_sp(:).*ccflx(:))/bc.ccflxi;
+            if (abs(time_flx - time)>global_var.tol ) 
+                fprintf('error in time tracer calc \n');
+                fprintf('time, time_flx \t %17.16E \t %17.16E', time,time_flx);
+                msg ='error in time tracing calc --- STOP';
+                error(msg)
+            end 
+        end 
 
         % <<<<<<<<<<<<<<<<<<<<<  NEW: 05/13/2019  <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<<
         if(~global_var.def_size)
@@ -722,12 +747,13 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                 err_w_min= err_w;  % recording minimum relative difference of  w
                 wxx = wx;  % recording w which minimizes deviation of total sld fraction from 1
             end
-
-            if (itr_w>100)   % if iteration gets too many (100), force to end with optimum w where error is minimum
-                if (itr_w==101)
+            
+            itr_w_max = 20;
+            if (itr_w>itr_w_max)   % if iteration gets too many (100), force to end with optimum w where error is minimum
+                if (itr_w==itr_w_max+1)
                     w = wxx;
                     % %                             go to 300  % Dominik: do just go back to 300 if err_w > tol
-                elseif (itr_w==102)
+                elseif (itr_w==itr_w_max+2)
                     w = wxx;
                     fprintf('not converging w %i \t %17.16e \t %17.16e \n',time, err_w, err_w_min);
                     %       pause;
@@ -766,13 +792,28 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             d18o_blk(iz) = sum(d18o_sp(:)'.*ccx(iz,:))/sum(ccx(iz,:));
             d13c_blk(iz) = sum(d13c_sp(:)'.*ccx(iz,:))/sum(ccx(iz,:));
             if(global_var.def_size)
-                d18o_blkf(iz) = sum(d18o_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
-                d13c_blkf(iz) = sum(d13c_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
-                d18o_blkc(iz) = sum(d18o_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
-                d13c_blkc(iz) = sum(d13c_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
+                if ~global_var.def_timetrack
+                    d18o_blkf(iz) = sum(d18o_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
+                    d13c_blkf(iz) = sum(d13c_sp(1:4).*ccx(iz,1:4))/sum(ccx(iz,1:4));
+                    d18o_blkc(iz) = sum(d18o_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
+                    d13c_blkc(iz) = sum(d13c_sp(5:8).*ccx(iz,5:8))/sum(ccx(iz,5:8));
+                else
+                    d18o_blkf(iz) = (sum(d18o_sp(1:4).*ccx(iz,1:4)) ...
+                        + sum(d18o_sp(1+global_var.nspcc/2:4+global_var.nspcc/2).*ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2))) ...
+                        /(sum(ccx(iz,1:4)) + sum(ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2))  );
+                    d13c_blkf(iz) = (sum(d13c_sp(1:4).*ccx(iz,1:4)) ...
+                        + sum(d13c_sp(1+global_var.nspcc/2:4+global_var.nspcc/2).*ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2)))  ...
+                        /( sum(ccx(iz,1:4)) + sum(ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2)) );
+                    d18o_blkc(iz) = ( sum(d18o_sp(5:8).*ccx(iz,5:8))  ...
+                        + sum(d18o_sp(5+global_var.nspcc/2:8+global_var.nspcc/2).*ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2)) )  ...
+                        /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2)) );
+                    d13c_blkc(iz) = ( sum(d13c_sp(5:8).*ccx(iz,5:8)) ...
+                        + sum(d13c_sp(5+global_var.nspcc/2:8+global_var.nspcc/2).*ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2))  )  ...
+                        /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2)) );
+                end 
             end
             if global_var.def_isotrack
-                % if ~timetrack
+                if ~global_var.def_timetrack
                     r18o_blk(iz) = sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i13c18o)])  ...
                         /sum([3e0*ccx(iz,global_var.i12c16o),3e0*ccx(iz,global_var.i13c16o),2e0*ccx(iz,global_var.i12c18o),2e0*ccx(iz,global_var.i13c18o)]);
                     r13c_blk(iz) = sum([ccx(iz,global_var.i13c16o),ccx(iz,global_var.i13c18o)])  ...
@@ -787,26 +828,42 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
                     r47 = (ccx(iz,global_var.i13c18o))/ccx(iz,global_var.i12c16o);
                     r47s = r13c_blk(iz)*r18o_blk(iz); 
                     capd47(iz) = ((r47/r47s-1e0) )*1e3; 
-                % else
-                    % r18o_blk[iz] = np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i13c18o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i13c18o+nspcc/2]]))  \
-                        % /np.sum(np.array([3e0*ccx[iz,i12c16o],3e0*ccx[iz,i13c16o],2e0*ccx[iz,i12c18o],2e0*ccx[iz,i13c18o]  \
-                        % ,3e0*ccx[iz,i12c16o+nspcc/2],3e0*ccx[iz,i13c16o+nspcc/2],2e0*ccx[iz,i12c18o+nspcc/2],2e0*ccx[iz,i13c18o+nspcc/2]]))
-                    % r13c_blk[iz] = np.sum(np.array([ccx[iz,i13c16o],ccx[iz,i13c18o],ccx[iz,i13c16o+nspcc/2],ccx[iz,i13c18o+nspcc/2]]))  \
-                        % /np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i12c16o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i12c16o+nspcc/2]]))
-                    % r17o_blk[iz] = 0e0
-                    % d18o_blk[iz] = r2d(r18o_blk[iz],r18o_pdb)
-                    % d17o_blk[iz] = r2d(r17o_blk[iz],r17o_pdb)
-                    % d13c_blk[iz] = r2d(r13c_blk[iz],r13c_pdb)
-                    % d14c_age[iz] = -(1e0/k14ci)*np.log((ccx[iz,i14c]+ccx[iz,i14c+nspcc/2])   \
-                        % /np.sum(np.array([ccx[iz,i12c18o],ccx[iz,i12c16o],ccx[iz,i12c18o+nspcc/2],ccx[iz,i12c16o+nspcc/2]])) \
-                        % /r14ci) # Stuiver and Polach (1977)
-                    
-                    % r47 = (ccx[iz,i13c18o]+ccx[iz,i13c18o+nspcc/2])/(ccx[iz,i12c16o]+ccx[iz,i12c16o+nspcc/2])
-                    % r47s = r13c_blk[iz]*r18o_blk[iz] 
-                    
-                    % capd47[iz] = ((r47/r47s-1e0) )*1e3
-                % end 
-            end 
+                else
+                    r18o_blk(iz) = sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i13c18o),ccx(iz,global_var.i12c18o+global_var.nspcc/2) ...
+                        ,ccx(iz,global_var.i13c18o+global_var.nspcc/2)])  ...
+                        /sum([3d0*ccx(iz,global_var.i12c16o),3d0*ccx(iz,global_var.i13c16o),2d0*ccx(iz,global_var.i12c18o),2d0*ccx(iz,global_var.i13c18o)  ...
+                        ,3d0*ccx(iz,global_var.i12c16o+global_var.nspcc/2),3d0*ccx(iz,global_var.i13c16o+global_var.nspcc/2)...
+                        ,2d0*ccx(iz,global_var.i12c18o+global_var.nspcc/2),2d0*ccx(iz,global_var.i13c18o+global_var.nspcc/2)]);
+                    r13c_blk(iz) = sum([ccx(iz,global_var.i13c16o),ccx(iz,global_var.i13c18o)...
+                        ,ccx(iz,global_var.i13c16o+global_var.nspcc/2),ccx(iz,global_var.i13c18o+global_var.nspcc/2)])  ...
+                        /sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i12c16o) ...
+                        ,ccx(iz,global_var.i12c18o+global_var.nspcc/2),ccx(iz,global_var.i12c16o+global_var.nspcc/2)]);
+                    r17o_blk(iz) = 0d0;
+                    d18o_blk(iz) = caco3_main.r2d(r18o_blk(iz),global_var.r18o_pdb);
+                    d17o_blk(iz) = caco3_main.r2d(r17o_blk(iz),global_var.r17o_pdb);
+                    d13c_blk(iz) = caco3_main.r2d(r13c_blk(iz),global_var.r13c_pdb);
+                    d14c_age(iz) = -(1e0/global_var.k14ci)*log((ccx(iz,global_var.i14c)+ccx(iz,global_var.i14c+global_var.nspcc/2))   ...
+                        /sum([ccx(iz,global_var.i12c18o),ccx(iz,global_var.i12c16o)...
+                        ,ccx(iz,global_var.i12c18o+global_var.nspcc/2),ccx(iz,global_var.i12c16o+global_var.nspcc/2)]) ...
+                        /global_var.r14ci); % Stuiver and Polach (1977)
+
+                    r47 = (ccx(iz,global_var.i13c18o)+ccx(iz,global_var.i13c18o+global_var.nspcc/2))...
+                        /(ccx(iz,global_var.i12c16o)+ccx(iz,global_var.i12c16o+global_var.nspcc/2));
+                    r47s = r13c_blk(iz)*r18o_blk(iz);
+                    capd47(iz) = ((r47/r47s-1d0) )*1d3;
+                end 
+            end
+            if global_var.def_timetrack 
+                time_blk(iz) = sum(time_sp(:)'.*ccx(iz,:))/sum(ccx(iz,:));
+                if global_var.def_size 
+                    time_blkf(iz) = (sum(time_sp(1:4).*ccx(iz,1:4)) ...
+                        + sum(time_sp(1+global_var.nspcc/2:4+global_var.nspcc/2).*ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2)) )  ...
+                        /( sum(ccx(iz,1:4)) + sum(ccx(iz,1+global_var.nspcc/2:4+global_var.nspcc/2))  );
+                    time_blkc(iz) = ( sum(time_sp(5:8).*ccx(iz,5:8)) ...
+                        + sum(time_sp(5+global_var.nspcc/2:8+global_var.nspcc/2).*ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2)) ) ...
+                        /( sum(ccx(iz,5:8)) + sum(ccx(iz,5+global_var.nspcc/2:8+global_var.nspcc/2)) );
+                end 
+            end             
         end
 
         % recording
@@ -834,7 +891,7 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         % recording signals at 3 different depths (btm of mixed layer, 2xdepths of btm of mixed layer and btm depth of calculation domain)
         caco3_main.sigrec(w,file_sigmlyid,file_sigmlydid,file_sigbtmid,time,age,izrec,d13c_blk,d13c_blkc  ...
             ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,global_var.mcc,rho,ptx,global_var.msed,izrec2,global_var.nz, global_var.def_size ...
-            ,d14c_age,capd47,time_blk,time_blkc,time_blkf,global_var.sporo ...
+            ,d14c_age,capd47,time_blk,time_blkc,time_blkf,global_var.sporo,global_var.def_timetrack,global_var.nspcc ...
             )
         %********************************************************************************************************************************  ADDED-END
 

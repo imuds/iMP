@@ -71,8 +71,10 @@ classdef caco3_main
         def_nodissolve = false;     % assuming no caco3 dissolution
         
         def_fullclump = false;      % allowing full 2 substitution including 17o
-        def_isotrack = true;      % directly tracking 5 isotopologues
-        def_kie = true;      % directly tracking 5 isotopologues
+        def_isotrack = false;      % directly tracking 5 isotopologues
+        def_kie = false;      % directly tracking 5 isotopologues
+        
+        def_timetrack = true; % tracking time as a proxy 
         
         def_mocsy = false;          % using mocsy for caco3 thermodynamics
         MOCSY_USE_PRECISION = 2;    % digit used for mocsy
@@ -80,6 +82,8 @@ classdef caco3_main
         def_co2sys = false;          % using CO2SYS for caco3 thermodynamics
         
         def_recgrid = false;    % recording the grid to be used for making transition matrix in LABS
+        
+        def_dispwarnings = false;
         
         % isotopologues
         i12c16o=1;
@@ -173,6 +177,10 @@ classdef caco3_main
                 global_var.nspcc = 4;
             end
             
+            if (global_var.def_timetrack) 
+                global_var.nspcc = global_var.nspcc*2;
+            end 
+            
             % allowing changes in mcc for different classes 
             global_var.mcc = ones(1,global_var.nspcc)*100e0;
             if (global_var.def_isotrack)
@@ -181,6 +189,13 @@ classdef caco3_main
                 mcc(global_var.i13c16o) = 40.078+13.+16.*3.;
                 mcc(global_var.i13c18o) = 40.078+13.+16.*2.+18.;
                 mcc(global_var.i14c) = 40.078+14.+16.*3.;
+                if (global_var.def_timetrack) 
+                    mcc(global_var.i12c16o+global_var.nspcc/2) = 40.078+12.+16.*3.;
+                    mcc(global_var.i12c18o+global_var.nspcc/2) = 40.078+12.+16.*2.+18.;
+                    mcc(global_var.i13c16o+global_var.nspcc/2) = 40.078+13.+16.*3.;
+                    mcc(global_var.i13c18o+global_var.nspcc/2) = 40.078+13.+16.*2.+18.;
+                    mcc(global_var.i14c+global_var.nspcc/2) = 40.078+14.+16.*3.;
+                end 
             end
             
             if(global_var.def_nodissolve)
@@ -304,18 +319,24 @@ classdef caco3_main
                 kcc(:,2) = global_var.kcci*10d0;
                 kcc(:,3) = global_var.kcci*10d0;
                 kcc(:,4) = global_var.kcci*10d0;
+                if global_var.def_timetrack 
+                    kcc(:,1+global_var.nspcc/2) = global_var.kcci*10d0;
+                    kcc(:,2+global_var.nspcc/2) = global_var.kcci*10d0;
+                    kcc(:,3+global_var.nspcc/2) = global_var.kcci*10d0;
+                    kcc(:,4+global_var.nspcc/2) = global_var.kcci*10d0;
+                end 
             end
             
             if global_var.def_isotrack
                 krad(:,global_var.i14c) = global_var.k14ci;
-                % if global_ver.def_timetrack
-                    % krad(:,i14c+nspcc/2) = k14ci 
-                % end
+                if global_var.def_timetrack
+                    krad(:,global_var.i14c+global_var.nspcc/2) = global_var.k14ci; 
+                end 
                 if global_var.def_kie
                     kcc(:,global_var.i13c18o) = global_var.kcci*(1e0-5e-5);
-                    % if global_ver.def_timetrack 
-                        % kcc(:,i13c18o+nspcc/2) = kcci*(1e0-5e-5)
-                    % end 
+                    if global_var.def_timetrack 
+                        kcc(:,global_var.i13c18o+global_var.nspcc/2) = global_var.kcci*(1e0-5e-5);
+                    end 
                 end 
             end 
             
@@ -455,7 +476,7 @@ classdef caco3_main
         end
         
         
-        function [trans,izrec,izrec2,izml,nonlocal] = make_transmx(labs,nspcc,turbo2,nobio,dz,sporo,nz,z, zml_ref, def_size,folder)
+        function [trans,izrec,izrec2,izml,nonlocal] = make_transmx(labs,nspcc,turbo2,nobio,dz,sporo,nz,z, zml_ref, def_size,folder,def_timetrack)
             % % make transition matrix
             
             % allocate output arrrays
@@ -510,6 +531,12 @@ classdef caco3_main
                 zml(2+2)=20d0;   % note that total number of solid species is 2 + nspcc including om, clay and nspcc of caco3; thus index has '2+'
                 zml(2+3)=20d0;
                 zml(2+4)=20d0;
+                if def_timetrack
+                    zml(2+1+nspcc/2)=20d0;   % fine species have larger mixed layers 
+                    zml(2+2+nspcc/2)=20d0;   % note that total number of solid species is 2 + nspcc including om, clay and nspcc of caco3; thus index has '2+'
+                    zml(2+3+nspcc/2)=20d0; 
+                    zml(2+4+nspcc/2)=20d0; 
+                end 
                 zrec = 1.1d0*min(zml);  % first recording is made below minimum depth of mixed layer
                 zrec2 = 1.1d0*max(zml); % second recording is made below maximum depth of mixed layer
             end
@@ -2216,7 +2243,7 @@ classdef caco3_main
             
         end
         
-        function [d13c_sp,d18o_sp] = sig2sp_pre(d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf, def_sense, def_size, nspcc)
+        function [d13c_sp,d18o_sp] = sig2sp_pre(d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf, def_sense, def_size, nspcc,def_timetrack)
             %% end-member signal assignment
             
             d18o_sp = zeros(1, nspcc);
@@ -2232,6 +2259,16 @@ classdef caco3_main
                 d18o_sp(3)=d18o_ocni;
                 d13c_sp(4)=d13c_ocnf;
                 d18o_sp(4)=d18o_ocnf;
+                if def_timetrack 
+                    d13c_sp(5)=d13c_ocni;
+                    d18o_sp(5)=d18o_ocni;
+                    d13c_sp(6)=d13c_ocni;
+                    d18o_sp(6)=d18o_ocnf;
+                    d13c_sp(7)=d13c_ocnf;
+                    d18o_sp(7)=d18o_ocni;
+                    d13c_sp(8)=d13c_ocnf;
+                    d18o_sp(8)=d18o_ocnf;
+                end
             else
                 d18o_sp = zeros(1, nspcc);
                 d13c_sp = zeros(1, nspcc);
@@ -2247,6 +2284,18 @@ classdef caco3_main
                 d18o_sp(7)=d18o_ocni;
                 d13c_sp(8)=d13c_ocnf;
                 d18o_sp(8)=d18o_ocnf;
+                if def_timetrack 
+                    for isp=2:3
+                        d13c_sp(1+4*isp)=d13c_ocni;
+                        d18o_sp(1+4*isp)=d18o_ocni;
+                        d13c_sp(2+4*isp)=d13c_ocni;
+                        d18o_sp(2+4*isp)=d18o_ocnf;
+                        d13c_sp(3+4*isp)=d13c_ocnf;
+                        d18o_sp(3+4*isp)=d18o_ocni;
+                        d13c_sp(4+4*isp)=d13c_ocnf;
+                        d18o_sp(4+4*isp)=d18o_ocnf;
+                    end
+                end 
             end
         end
         
@@ -2286,7 +2335,7 @@ classdef caco3_main
         
         function [d13c_ocn,d18o_ocn,ccflx,d18o_sp,d13c_sp,capd47_ocn] = signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
                 ,ccflx,ccflxi,d18o_sp,d13c_sp,it,nspcc, flxfini,flxfinf, def_track2, def_size, def_biotest ...
-                ,capd47_ocni,capd47_ocnf,def_isotrack,tol,r13c_pdb,r18o_pdb,r14ci ...
+                ,capd47_ocni,capd47_ocnf,def_isotrack,tol,r13c_pdb,r18o_pdb,r14ci,def_timetrack,time_min,time_max  ...
                 )
             
             % local varaiable
@@ -2308,6 +2357,10 @@ classdef caco3_main
                     d13c_sp(cntsp)=d13c_ocn;
                     ccflx = zeros(1, nspcc);
                     ccflx(cntsp) = ccflxi;
+                    if def_timetrack 
+                        d18o_sp(cntsp+nspcc/2)=d18o_ocn;
+                        d13c_sp(cntsp+nspcc/2)=d13c_ocn;
+                    end 
                 end
                 if(def_size)
                     ccflx = zeros(1, nspcc);
@@ -2460,6 +2513,10 @@ classdef caco3_main
                     end
                     d18o_sp(cntsp+1)=d18o_ocn;
                     d13c_sp(cntsp+1)=d13c_ocn;
+                    if def_timetrack 
+                        d18o_sp(cntsp+1+nspcc/2)=d18o_ocn;
+                        d13c_sp(cntsp+1+nspcc/2)=d13c_ocn;
+                    end 
                     ccflx = 0d0;
                     ccflx(cntsp+1) = ccflxi;
                 end %# if
@@ -2516,9 +2573,14 @@ classdef caco3_main
                 ymx = ymx';
                 kai = linsolve(amx,ymx);
                 ymx=kai;
-                ifsp = 1;  % added for time tracking 
+                if def_timetrack 
+                    ifsp = 2;
+                else
+                    ifsp = 1;
+                end
+                % ifsp = 1;  % added for time tracking 
                 flxfrc2 = zeros(1,nspcc);
-                flxfrc2(:) = ymx(:)/ccflxi;  % modified for time tracking 
+                flxfrc2(1:nspcc/ifsp) = ymx(:)/ccflxi;  % modified for time tracking 
                 if abs(sum(flxfrc2)-1e0)>tol
                     % print 'error in flx',flxfrc2
                     % input()
@@ -2530,9 +2592,31 @@ classdef caco3_main
                     error(msg)
                 end 
                 flxfrc = zeros(1,nspcc);
-                flxfrc(:) = flxfrc2(:);
+                flxfrc(1:nspcc/ifsp) = flxfrc2(1:nspcc/ifsp);
                 ccflx(:) = 0e0;
-                ccflx(:) = flxfrc(:)*ccflxi;  
+                ccflx(1:nspcc/ifsp) = flxfrc(1:nspcc/ifsp)*ccflxi;  
+            end 
+            
+            
+            if def_timetrack
+                flxfrc3(1:nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time));  % contribuion from max age class 
+                flxfrc3(1+nspcc/2:nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)); % contribution from min age class 
+                if (abs(sum(ccflx)/ccflxi - 1d0)>tol)  
+                    fprintf('flx calc in error with including time-tracking pre \t%17.16e \t%17.16e',sum(ccflx),ccflxi );
+                    msg = 'flx calc in error with including time-tracking pre';
+                    error(msg)
+                end
+                for isp=1+nspcc/2:nspcc
+                    ccflx(isp)=flxfrc3(isp)*ccflx(isp-nspcc/2);
+                end
+                for isp=1:nspcc/2
+                    ccflx(isp)=flxfrc3(isp)*ccflx(isp);
+                end
+                if (abs(sum(ccflx)/ccflxi - 1d0)>tol)  
+                    fprintf('flx calc in error with including time-tracking aft \t%17.16e \t%17.16e',sum(ccflx),ccflxi );
+                    msg = 'flx calc in error with including time-tracking aft';
+                    error(msg)
+                end
             end 
             
         end
@@ -2563,7 +2647,7 @@ classdef caco3_main
         
         function sigrec(w,file_sigmlyid,file_sigmlydid,file_sigbtmid,time,age,izrec,d13c_blk,d13c_blkc  ...
                 ,d13c_blkf,d18o_blk,d18o_blkc,d18o_blkf,ccx,mcc,rho,ptx,msed,izrec2,nz, def_size ...
-                ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo ...
+                ,d14c_age,capd47,time_blk,time_blkc,time_blkf,sporo, def_timetrack, nspcc ...
                 )
             %% recording signals at 3 different depths (btm of mixed layer, 2xdepths of btm of mixed layer and btm depth of calculation domain)
             
@@ -2591,43 +2675,75 @@ classdef caco3_main
                         );
                 end
             else
-                if (all(w>=0d0))    % not recording when burial is negative
-                    fmt=[repmat('%17.16e \t',1, 18) '\n'];
-                    % 	    write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
-                    %        ,sum(ccx(izrec,:))*mcc/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
-                    %        ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4))*mcc/rho(izrec)*100d0  &
-                    %       ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8))*mcc/rho(izrec)*100d0
-                    fprintf(file_sigmlyid,fmt,...
-                        time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) ...
-                        ,sum(ccx(izrec,:).*transpose(mcc(:)))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  ...
-                        ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4).*mcc(1:4))/rho(izrec)*100d0  ...
-                        ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8).*mcc(5:8))/rho(izrec)*100d0 ...
-                        ,time_blk(izrec),time_blkf(izrec),time_blkc(izrec),age(izrec), sporo(izrec),w(izrec),time ...
-                        );
-                    %     write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
-                    %         ,sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
-                    %         ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4))*mcc/rho(izrec2)*100d0  &
-                    %         ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8))*mcc/rho(izrec2)*100d0
-                    fprintf(file_sigmlydid,fmt,...
-                        time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) ...
-                        ,sum(ccx(izrec2,:).*transpose(mcc(:)))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 ...
-                        ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4).*mcc(1:4))/rho(izrec2)*100d0  ...
-                        ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8).*mcc(5:8))/rho(izrec2)*100d0 ...
-                        ,time_blk(izrec2),time_blkf(izrec2),time_blkc(izrec2),age(izrec2), sporo(izrec2),w(izrec2),time ...
-                        );
-                    %     write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
-                    %         ,sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 &
-                    %         ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4))*mcc/rho(nz)*100d0  &
-                    %         ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8))*mcc/rho(nz)*100d0
-                    fprintf(file_sigbtmid,fmt,...
-                        time-age(nz),d13c_blk(nz),d18o_blk(nz) ...
-                        ,sum(ccx(nz,:).*transpose(mcc(:)))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 ...
-                        ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4).*mcc(1:4))/rho(nz)*100d0  ...
-                        ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8).*mcc(5:8))/rho(nz)*100d0 ...
-                        ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time ...
-                        );
+                if def_timetrack
+                    if (all(w>=0d0)) % not recording when burial is negative 
+                        fmt=[repmat('%17.16e \t',1, 18) '\n'];
+                        fprintf(file_sigmlyid,fmt,...
+                            time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) ...
+                            ,sum(ccx(izrec,:).*mcc(:)')/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  ...
+                            ,d13c_blkf(izrec),d18o_blkf(izrec) ...
+                            ,(sum(ccx(izrec,1:4).*mcc(1:4))+sum(ccx(izrec,1+nspcc/2:4+nspcc/2).*mcc(1+nspcc/2:4+nspcc/2)))/rho(izrec)*100d0  ...
+                            ,d13c_blkc(izrec),d18o_blkc(izrec) ...
+                            ,(sum(ccx(izrec,5:8).*mcc(5:8))+sum(ccx(izrec,5+nspcc/2:8+nspcc/2).*mcc(5+nspcc/2:8+nspcc/2)))/rho(izrec)*100d0  ...
+                            ,time_blk(izrec),time_blkf(izrec),time_blkc(izrec),age(izrec), sporo(izrec),w(izrec),time ...
+                            );
+                        fprintf(file_sigmlydid,fmt,...
+                            time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) ...
+                            ,sum(ccx(izrec2,:).*mcc(:)')/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  ...
+                            ,d13c_blkf(izrec2),d18o_blkf(izrec2)  ...
+                            ,(sum(ccx(izrec2,1:4).*mcc(1:4))+sum(ccx(izrec2,1+nspcc/2:4+nspcc/2).*mcc(1+nspcc/2:4+nspcc/2)))/rho(izrec2)*100d0  ...
+                            ,d13c_blkc(izrec2),d18o_blkc(izrec2)  ...
+                            ,(sum(ccx(izrec2,5:8).*mcc(5:8))+sum(ccx(izrec2,5+nspcc/2:8+nspcc/2).*mcc(5+nspcc/2:8+nspcc/2)))/rho(izrec2)*100d0  ...
+                            ,time_blk(izrec2),time_blkf(izrec2),time_blkc(izrec2),age(izrec2), sporo(izrec2),w(izrec2),time...
+                            );
+                        fprintf(file_sigbtmid,fmt,...
+                            time-age(nz),d13c_blk(nz),d18o_blk(nz) ...
+                            ,sum(ccx(nz,:).*mcc(:)')/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 ...
+                            ,d13c_blkf(nz),d18o_blkf(nz)  ...
+                            ,(sum(ccx(nz,1:4).*mcc(1:4))+sum(ccx(nz,1+nspcc/2:4+nspcc/2).*mcc(1+nspcc/2:4+nspcc/2)))/rho(nz)*100d0  ...
+                            ,d13c_blkc(nz),d18o_blkc(nz)  ...
+                            ,(sum(ccx(nz,5:8).*mcc(5:8))+sum(ccx(nz,5+nspcc/2:8+nspcc/2).*mcc(5+nspcc/2:8+nspcc/2)))/rho(nz)*100d0  ...
+                            ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time...
+                            );
+                    end 
+                else 
+                    if (all(w>=0d0))    % not recording when burial is negative
+                        fmt=[repmat('%17.16e \t',1, 18) '\n'];
+                        % 	    write(file_sigmly,*) time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) &
+                        %        ,sum(ccx(izrec,:))*mcc/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  &
+                        %        ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4))*mcc/rho(izrec)*100d0  &
+                        %       ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8))*mcc/rho(izrec)*100d0
+                        fprintf(file_sigmlyid,fmt,...
+                            time-age(izrec),d13c_blk(izrec),d18o_blk(izrec) ...
+                            ,sum(ccx(izrec,:).*transpose(mcc(:)))/rho(izrec)*100d0,ptx(izrec)*msed/rho(izrec)*100d0  ...
+                            ,d13c_blkf(izrec),d18o_blkf(izrec),sum(ccx(izrec,1:4).*mcc(1:4))/rho(izrec)*100d0  ...
+                            ,d13c_blkc(izrec),d18o_blkc(izrec),sum(ccx(izrec,5:8).*mcc(5:8))/rho(izrec)*100d0 ...
+                            ,time_blk(izrec),time_blkf(izrec),time_blkc(izrec),age(izrec), sporo(izrec),w(izrec),time ...
+                            );
+                        %     write(file_sigmlyd,*) time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) &
+                        %         ,sum(ccx(izrec2,:))*mcc/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0  &
+                        %         ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4))*mcc/rho(izrec2)*100d0  &
+                        %         ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8))*mcc/rho(izrec2)*100d0
+                        fprintf(file_sigmlydid,fmt,...
+                            time-age(izrec2),d13c_blk(izrec2),d18o_blk(izrec2) ...
+                            ,sum(ccx(izrec2,:).*transpose(mcc(:)))/rho(izrec2)*100d0,ptx(izrec2)*msed/rho(izrec2)*100d0 ...
+                            ,d13c_blkf(izrec2),d18o_blkf(izrec2),sum(ccx(izrec2,1:4).*mcc(1:4))/rho(izrec2)*100d0  ...
+                            ,d13c_blkc(izrec2),d18o_blkc(izrec2),sum(ccx(izrec2,5:8).*mcc(5:8))/rho(izrec2)*100d0 ...
+                            ,time_blk(izrec2),time_blkf(izrec2),time_blkc(izrec2),age(izrec2), sporo(izrec2),w(izrec2),time ...
+                            );
+                        %     write(file_sigbtm,*) time-age(nz),d13c_blk(nz),d18o_blk(nz) &
+                        %         ,sum(ccx(nz,:))*mcc/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 &
+                        %         ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4))*mcc/rho(nz)*100d0  &
+                        %         ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8))*mcc/rho(nz)*100d0
+                        fprintf(file_sigbtmid,fmt,...
+                            time-age(nz),d13c_blk(nz),d18o_blk(nz) ...
+                            ,sum(ccx(nz,:).*transpose(mcc(:)))/rho(nz)*100d0,ptx(nz)*msed/rho(nz)*100d0 ...
+                            ,d13c_blkf(nz),d18o_blkf(nz),sum(ccx(nz,1:4).*mcc(1:4))/rho(nz)*100d0  ...
+                            ,d13c_blkc(nz),d18o_blkc(nz),sum(ccx(nz,5:8).*mcc(5:8))/rho(nz)*100d0 ...
+                            ,time_blk(nz),time_blkf(nz),time_blkc(nz),age(nz),sporo(nz),w(nz),time ...
+                            );
+                    end
                 end
-                
             end
             
         end
