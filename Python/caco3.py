@@ -2301,7 +2301,8 @@ def dic_iso(
     f14c_ocn = r14c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn)
     r18o_ocn = d2r(d18o_ocn,r18o_pdb)
     r16o_ocn = 1e0
-    r17o_ocn = ((17e0-16e0)/(18e0-16e0)*18e0*16e0/(17e0*16e0)*(r18o_ocn/r18o_pdb-1e0)+1e0)*r17o_pdb
+    # r17o_ocn = ((17e0-16e0)/(18e0-16e0)*18e0*16e0/(17e0*16e0)*(r18o_ocn/r18o_pdb-1e0)+1e0)*r17o_pdb # to explicitly consider 17O (not implemented yet)
+    r17o_ocn = 0e0  # when not considering 17o
     f16o_ocn = r16o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
     f17o_ocn = r17o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
     f18o_ocn = r18o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn)
@@ -2536,8 +2537,9 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
     beta = 1. + 5e-11
     dz,z = makegrid(beta,ztot,nz)
     ### FUNDAMENTAL PARAMETERS 
-    omflx = np.float64(om2cc*ccflxi)
-    detflx = np.float64(1./9.*ccflxi*mcc)
+    if not reading:
+        omflx = np.float64(om2cc*ccflxi)
+        detflx = np.float64(1./9.*ccflxi*mcc)
     ccflx = np.zeros((nspcc),dtype=np.float64)
     ccflx[:] = ccflxi/float(nspcc)
     # ccflx[0]=ccflxi
@@ -2933,7 +2935,7 @@ def caco3_main(ccflxi,om2cc,dep,dt,fl,biot,oxonly,runmode,co2chem,sparse,showite
                 tmp_array = np.concatenate([tmp_array,ccflx])
                 tmp_array = np.concatenate([tmp_array,np.array([temp, dep, sal,dici,alki, o2i])])
                 tmp_str = ['%-11.4e' % (i) for i in tmp_array]
-                tmp_str = ''.join(tmp_str)
+                tmp_str = ' '.join(tmp_str)
                 # print>> file_bound, time, d13c_ocn, d18o_ocn, capd47_ocn\
                         # , np.sum(ccflx[0:4]),np.sum(ccflx[4:8]),str(ccflx)[1:-1]\
                         # ,temp, dep, sal,dici,alki, o2i
