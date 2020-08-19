@@ -76,6 +76,8 @@ classdef caco3_main
         
         def_timetrack = true; % tracking time as a proxy 
         
+        def_reading = true; % use input file for sinal tracking diagenesis
+        
         def_mocsy = false;          % using mocsy for caco3 thermodynamics
         MOCSY_USE_PRECISION = 2;    % digit used for mocsy
         
@@ -83,7 +85,7 @@ classdef caco3_main
         
         def_recgrid = false;    % recording the grid to be used for making transition matrix in LABS
         
-        def_dispwarnings = false;
+        def_dispwarnings = false;  % true if you want to see all the warnings issued by MATLAB
         
         % isotopologues
         i12c16o=1;
@@ -96,6 +98,7 @@ classdef caco3_main
         r13c_pdb = 0.011180;
         r14ci = 1.2e-12; % c14/c12 in modern, Aloisi et al. 2004, citing Kutschera 2000
         k14ci = 1e0/8033e0; % [yr-1], Aloisi et al. 2004
+        c14age_cc = 0;   % 14C-age of raining caco3
         
     end
     
@@ -614,7 +617,8 @@ classdef caco3_main
             % if mixing intensity and depths are different between different species
             if (all(~nonlocal))
                 for isp=1:nspcc+2-1
-                    if (any(trans(:,:,isp+1)~=trans(:,:,isp),'all'))
+                    % if (any(trans(:,:,isp+1)~=trans(:,:,isp)))  % working with MATLAB2017a
+                    if (any(trans(:,:,isp+1)~=trans(:,:,isp),'all'))  %working with MATLAB2020a
                         nonlocal(:)=true;
                     end
                 end
@@ -2620,6 +2624,102 @@ classdef caco3_main
             end 
             
         end
+        
+        
+        function  [dic] = dic_iso(  ...
+            d13c_ocn,d18o_ocn,dici  ...
+            ,r14ci,capd47_ocn,c14age_ocn ...      
+            ,r13c_pdb,r18o_pdb,r17o_pdb  ...
+            ,nspcc ...
+            )
+            % DIC isotopologues calculation  
+            tol=1e-12;
+            % only when directly tracking isotopes 
+            % r13c_ocn = caco3_main.d2r(d13c_ocn,r13c_pdb);
+            % r12c_ocn = 1e0;
+            % r14c_ocn = r14ci;
+            % f12c_ocn = r12c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            % f13c_ocn = r13c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            % f14c_ocn = r14c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            % r18o_ocn = caco3_main.d2r(d18o_ocn,r18o_pdb);
+            % r16o_ocn = 1e0;
+            % r17o_ocn = 0e0;  % when not considering 17o
+            % f16o_ocn = r16o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            % f17o_ocn = r17o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            % f18o_ocn = r18o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            % nmx = 5;   
+            % amx = zeros(nmx);
+            % ymx = zeros(1,nmx);
+            % amx(:,:) = 0e0;
+            % ymx(:) = 0e0;
+            % amx(1,1)=1d0;
+            % amx(1,2)=1d0;
+            % ymx(1)=f12c_ocn*dici; 
+            % amx(2,3)=1d0;
+            % amx(2,4)=1d0;
+            % ymx(2)=f13c_ocn*dici;
+            % amx(3,1)=3d0;
+            % amx(3,2)=2d0;
+            % amx(3,3)=3d0;
+            % amx(3,4)=2d0;
+            % amx(3,5)=3d0*f16o_ocn;
+            % ymx(3)=3d0*f16o_ocn*dici;
+            % amx(4,4)=1d0;
+            % amx(4,1)=-1d0*r13c_ocn*r18o_ocn*(capd47_ocn*1d-3+1d0);
+            % amx(5,5)=1d0;
+            % ymx(5)=f14c_ocn*dici;
+            % ymx = ymx';
+            % kai = linsolve(amx,ymx);
+            % ymx=kai;
+            r13c_ocn = caco3_main.d2r(d13c_ocn,r13c_pdb);
+            r12c_ocn = 1e0;
+            r14c_ocn = r14ci*exp(-c14age_ocn/8033e0);
+            f12c_ocn = r12c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            f13c_ocn = r13c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            f14c_ocn = r14c_ocn/(r12c_ocn+r13c_ocn+r14c_ocn);
+            r18o_ocn = caco3_main.d2r(d18o_ocn,r18o_pdb);
+            r16o_ocn = 1e0;
+            % r17o_ocn = ((17e0-16e0)/(18e0-16e0)*18e0*16e0/(17e0*16e0)*(r18o_ocn/r18o_pdb-1e0)+1e0)*r17o_pdb;
+            r17o_ocn = 0e0;
+            f16o_ocn = r16o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            f17o_ocn = r17o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            f18o_ocn = r18o_ocn/(r16o_ocn+r17o_ocn+r18o_ocn);
+            nmx = 5;
+            amx = zeros(nmx);
+            ymx = zeros(1,nmx);
+            amx(:,:) = 0e0;
+            ymx(:) = 0e0;
+            amx(1,1)=1e0;
+            amx(1,2)=1e0;
+            ymx(1)=f12c_ocn*dici;
+            amx(2,3)=1e0;
+            amx(2,4)=1e0;
+            ymx(2)=f13c_ocn*dici;
+            amx(3,1)=3e0;
+            amx(3,2)=2e0;
+            amx(3,3)=3e0;
+            amx(3,4)=2e0;
+            amx(3,5)=3e0*f16o_ocn;
+            ymx(3)=3e0*f16o_ocn*dici;
+            amx(4,4)=1e0;
+            amx(4,1)=-1e0*r13c_ocn*r18o_ocn*(capd47_ocn*1e-3+1e0);
+            amx(5,5)=1e0;
+            ymx(5)=f14c_ocn*dici;
+            ymx = ymx';
+            kai = linsolve(amx,ymx);
+            ymx=kai;
+            dic = zeros(1,nspcc);
+            dic(1:nspcc) = ymx(:);
+            if abs((sum(dic(1:nspcc))-dici)/dici)>tol 
+                fprintf( 'error in assignment of dic');
+                fmt=[repmat('%17.16e \t',1,nspcc) '\n'];
+                fprintf (dic(1:nspcc));
+                fmt=[repmat('%17.16e \t',1,2) '\n'];
+                fprintf (fmt, sum(dic(1:nspcc)),dici);
+                msg = 'flx calc in error in dic_iso';
+                error(msg)
+            end 
+        end 
         
         function [dep] = bdcnd(time, time_spn, time_trs, depi, depf, def_biotest)
             

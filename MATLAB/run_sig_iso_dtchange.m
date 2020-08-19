@@ -42,6 +42,59 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         global_var.def_alllabs = true;
     end 
     
+    if global_var.def_reading  % when signal values etc. are provided in input files 
+        d13c_ocni = -1e100;
+        d13c_ocnf = 1e100;
+        d18o_ocni = -1e100;
+        d18o_ocnf = 1e100;
+        capd47_ocni = -1e100;
+        capd47_ocnf = 1e100;
+        c14age_ocni = -1e100;
+        c14age_ocnf = 1e100;
+        time_max = -1e100;
+        time_min = 1e100;
+        imp_input = load('../input/imp_input.in');
+        time_max = max(time_max,max(imp_input(:,1)));
+        time_min = min(time_min,min(imp_input(:,1)));
+        d13c_ocni = max(d13c_ocni,max(imp_input(:,14)));
+        d13c_ocnf = min(d13c_ocnf,min(imp_input(:,14)));
+        d18o_ocni = max(d18o_ocni,max(imp_input(:,15)));
+        d18o_ocnf = min(d18o_ocnf,min(imp_input(:,15)));
+        capd47_ocni = max(capd47_ocni,max(imp_input(:,16)));
+        capd47_ocnf = min(capd47_ocnf,min(imp_input(:,16)));
+        c14age_ocni = max(c14age_ocni,max(imp_input(:,17)));
+        c14age_ocnf = min(c14age_ocnf,min(imp_input(:,17)));
+        if (d13c_ocni == d13c_ocnf)
+            d13c_ocni = d13c_ocni + 1e0;
+            d13c_ocnf = d13c_ocnf - 1e0;
+        end
+        if (d18o_ocni == d18o_ocnf) 
+            d18o_ocni = d18o_ocni + 1e0;
+            d18o_ocnf = d18o_ocnf - 1e0;
+        end
+        if (capd47_ocni == capd47_ocnf)
+            capd47_ocni = capd47_ocni + 1e0;
+            capd47_ocnf = capd47_ocnf - 1e0;
+        end
+        if (c14age_ocni == c14age_ocnf)
+            c14age_ocni = c14age_ocni + 1e0;
+            c14age_ocnf = c14age_ocnf - 1e0;
+        end
+        if (time_max==time_min)
+            time_max = time_max + 1e0;
+            time_min=time_min-1e0;
+        end
+        time_max = time_max + (time_max - time_min)*1e-2;
+        time_min = time_min - (time_max - time_min)*1e-2;
+        tmp_input = num2cell(imp_input(1,:));
+        [time,tmp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti] = deal(tmp_input{:});
+        om2cc = omflx/ccflxi;
+        rainratio_in = om2cc;
+        cc_rain_flx_in = ccflxi;
+        dep_in = dep;
+        dt_in = dti;
+    end
+    
     homedir = erase(pwd,'iMP\MATLAB');
     homedir = strcat(homedir,'imp_output/matlab/');
     homedir = strcat(homedir,folder);
@@ -93,9 +146,6 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     dw = zeros(1, global_var.nz);                       % burial rate change
     rcc = zeros(global_var.nz, global_var.nspcc);       % dissolution rate of caco3
     deccc = zeros(global_var.nz, global_var.nspcc);       % dissolution rate of caco3
-
-    tmp = bc.tmp;   % 2.0;
-    sal = bc.sal;   % 35.0;
     
     
     if global_var.def_dispwarnings
@@ -132,7 +182,18 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     [global_var.poro, global_var.porof, global_var.sporof, global_var.sporo, global_var.sporoi] = caco3_main.getporosity(global_var.z, global_var.poroi, global_var.nz);      % assume porosity profile
     %%%%%%%%%%%%% flx assignement and initial guess for burial rate %%%%%%%%%%%%%%%%%%%%%%
     % assume fluxes of om, cc and clay, required to calculate burial velocity
-    [omflx, detflx, ccflx] = caco3_main.flxstat(global_var.om2cc, bc.ccflxi, global_var.mcc, global_var.nspcc);
+    if ~global_var.def_reading
+        [omflx, detflx, ccflx] = caco3_main.flxstat(global_var.om2cc, bc.ccflxi, global_var.mcc, global_var.nspcc);
+    else 
+        ccflx = ones(1,global_var.nspcc)*bc.ccflxi/global_var.nspcc; 
+        bc.tmp = tmp;
+        bc.sal = sal;
+        bc.dici = dici;
+        bc.alki = alki;
+        bc.o2i = o2i;
+    end
+    tmp = bc.tmp;   % 2.0;
+    sal = bc.sal;   % 35.0;
     %            fprintf('ccflx %17.16e \n', ccflx);
     fprintf('om2cc, ccflxi, detflx, omflx, sum(ccflx) \n');
     fprintf('%17.16e %17.16e %17.16e %17.16e %17.16e \n', global_var.om2cc, bc.ccflxi, detflx, omflx, sum(ccflx));
@@ -154,36 +215,45 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     [up, dwn, cnr, adf] = caco3_main.calcupwindscheme(w, global_var.nz);
 
     %%% ~~~~~~~~~~~~~~ set recording time
-    % call recordtime()
-    [rectime, cntrec, time_spn, time_trs, time_aft] = caco3_main.recordtime(global_var.nrec, wi, global_var.ztot, global_var.def_biotest, global_var.def_sense, global_var.def_nonrec, folder);
+    
+    if ~ global_var.def_reading
+        % call recordtime()
+        [rectime, cntrec, time_spn, time_trs, time_aft] = ...
+            caco3_main.recordtime(global_var.nrec, wi, global_var.ztot, global_var.def_biotest, global_var.def_sense, global_var.def_nonrec, folder);
 
-    % water depth, i and f denote initial and final values
-    % depi = dep_in;  % depth before event
-    % depf = dep_max;   % max depth to be changed to
-    depi = global_var.dep_ref;  % depth before event
-    depf = dep_max;   % max depth to be changed to
+        % water depth, i and f denote initial and final values
+        % depi = dep_in;  % depth before event
+        % depf = dep_max;   % max depth to be changed to
+        depi = global_var.dep_ref;  % depth before event
+        depf = dep_max;   % max depth to be changed to
 
-    % %  flux ratio of fine particles: i and f denote initial and final values
-    flxfini = 0.5d0;  %  total caco3 rain flux for fine species assumed before event
-    flxfinf = 0.9d0; %  maximum changed value
+        % %  flux ratio of fine particles: i and f denote initial and final values
+        flxfini = 0.5d0;  %  total caco3 rain flux for fine species assumed before event
+        flxfinf = 0.9d0; %  maximum changed value
 
-    % ///////////// isotopes  ////////////////
-    % initial value of ocean d13c, final value of ocean d13c / d18o
-    d13c_ocni = 2d0;  % initial ocean d13c value
-    d13c_ocnf = -1d0; % ocean d13c value with maximum change
-    d18o_ocni = 1d0; % initial ocean d18o value
-    d18o_ocnf = -1d0; % ocean d18o value with maximum change
-    capd47_ocni = 0.6; % D47 initial 
-    capd47_ocnf = 0.5; % D47 final
-    % for time tracking 
-    time_min = 0d0;
-    time_max =  (time_spn+time_trs+time_aft)*1.1d0;
+        % ///////////// isotopes  ////////////////
+        % initial value of ocean d13c, final value of ocean d13c / d18o
+        d13c_ocni = 2d0;  % initial ocean d13c value
+        d13c_ocnf = -1d0; % ocean d13c value with maximum change
+        d18o_ocni = 1d0; % initial ocean d18o value
+        d18o_ocnf = -1d0; % ocean d18o value with maximum change
+        capd47_ocni = 0.6; % D47 initial 
+        capd47_ocnf = 0.5; % D47 final
+        % for time tracking 
+        time_min = 0d0;
+        time_max =  (time_spn+time_trs+time_aft)*1.1d0;
+        % Dominik - initialize ocean d13c, d18o
+        d13c_ocn = 0d0;
+        d18o_ocn = 0d0;
+    else
+        rectime = load('../input/rectime.in');
+        dlmwrite(strcat(folder,'/rectime.txt'),rectime)
+        cntrec = 1;  % rec number (increasing with recording done )
+    end 
+    
     time_sp = zeros(1,global_var.nspcc);
     time_sp(1:global_var.nspcc/2) = time_max;
     time_sp(1+global_var.nspcc/2:global_var.nspcc) = time_min;
-    % Dominik - initialize ocean d13c, d18o
-    d13c_ocn = 0d0;
-    d18o_ocn = 0d0;
     % end-member signal assignment
     % call sig2sp_pre()
     [d13c_sp,d18o_sp] = caco3_main.sig2sp_pre(d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf...
@@ -267,63 +337,184 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     %%%  addition to chk_om.f90 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     global_var.zox = 10d0;  % initial assumption on oxygen penetaration depth [cm]
     %%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+    
+    if global_var.def_reading
+        dlmwrite(strcat(folder,'/imp_input.in'),imp_input,'delimiter','\t')
+        imp_input = load(strcat(folder,'/imp_input.in')); % just checking 
+    end 
     %%  START OF TIME INTEGLATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %            for int_count=1:nt
     flag_smaller_dt = false;
     while(2>1)              %   Here change to unknwon iteration
 
         %% ///////// isotopes & fluxes settings //////////////
-        if(~global_var.def_sense)   % do signal tracking
+        if ~global_var.def_reading
+            if(~global_var.def_sense)   % do signal tracking
 
-            % determine time step dt by calling timestep(time,nt_spn,nt_trs,nt_aft,dt) where nt_xx denotes total iteration number
-            nt_spn = 800;     % timesteps for spin-up % YK modified
-            nt_trs = 5000;    % timesteps close to & during event (signal transition) % YK modified
-            nt_aft = 1000;    % timesteps after event  % YK modified
-            if global_var.def_biotest
-                nt_spn=40;
-                nt_trs=500;
-                nt_aft=100;
-            end 
-            if warmup_done
-                [dt] = caco3_main.timestep(time, nt_spn, nt_trs, nt_aft, time_spn, time_trs, dt, global_var.def_biotest);
-            elseif (~warmup_done)
-                dt_max = 1e4;
-                if (int_count ==1) 
-                    dt = 1e-2;
-                else
-                    if (dt<dt_max)
-                        dt = dt*1.01e0;
-                    end
+                % determine time step dt by calling timestep(time,nt_spn,nt_trs,nt_aft,dt) where nt_xx denotes total iteration number
+                nt_spn = 800;     % timesteps for spin-up % YK modified
+                nt_trs = 5000;    % timesteps close to & during event (signal transition) % YK modified
+                nt_aft = 1000;    % timesteps after event  % YK modified
+                if global_var.def_biotest
+                    nt_spn=40;
+                    nt_trs=500;
+                    nt_aft=100;
                 end 
-                % if (int_count<11)
-                    % nt_spn = 80000;
-                % elseif (int_count<21)
-                    % nt_spn = 8000;
-                % else
-                    % warmup_done = true;
-                    % time = 0d0;
-                    % int_count = 1;
-                    % continue        % cycle in fortran
-                % end
-            end
+                if warmup_done
+                    [dt] = caco3_main.timestep(time, nt_spn, nt_trs, nt_aft, time_spn, time_trs, dt, global_var.def_biotest);
+                elseif (~warmup_done)
+                    dt_max = 1e4;
+                    if (int_count ==1) 
+                        dt = 1e-2;
+                    else
+                        if (dt<dt_max)
+                            dt = dt*1.01e0;
+                        end
+                    end 
+                    % if (int_count<11)
+                        % nt_spn = 80000;
+                    % elseif (int_count<21)
+                        % nt_spn = 8000;
+                    % else
+                        % warmup_done = true;
+                        % time = 0d0;
+                        % int_count = 1;
+                        % continue        % cycle in fortran
+                    % end
+                end
 
-            [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp,capd47_ocn] = ...
-                caco3_main.signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
-                ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest ...
-                ,capd47_ocni,capd47_ocnf,global_var.def_isotrack,global_var.tol,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r14ci,global_var.def_timetrack...
-                ,time_min,time_max...
-                );
+                [d13c_ocn, d18o_ocn, ccflx, d18o_sp, d13c_sp,capd47_ocn] = ...
+                    caco3_main.signal_flx(time, time_spn,time_trs,d13c_ocni,d13c_ocnf,d18o_ocni,d18o_ocnf ...
+                    ,ccflx,bc.ccflxi,d18o_sp,d13c_sp,int_count,global_var.nspcc,flxfini,flxfinf, global_var.def_track2, global_var.def_size, global_var.def_biotest ...
+                    ,capd47_ocni,capd47_ocnf,global_var.def_isotrack,global_var.tol,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r14ci,global_var.def_timetrack...
+                    ,time_min,time_max...
+                    );
 
-            [dep] = caco3_main.bdcnd(time, time_spn, time_trs, depi, depf, global_var.def_biotest);
-        else
-            if(~flag_smaller_dt)    % set to initial dt, if normal iteration
-                dt = dt_in;                % set dt to input time-step
+                [dep] = caco3_main.bdcnd(time, time_spn, time_trs, depi, depf, global_var.def_biotest);
             else
-                flag_smaller_dt = false;
+                if(~flag_smaller_dt)    % set to initial dt, if normal iteration
+                    dt = dt_in;                % set dt to input time-step
+                else
+                    flag_smaller_dt = false;
+                end
+            end
+        
+        elseif global_var.def_reading
+            if warmup_done            
+                tmp_input = num2cell(imp_input(int_count,:));
+                [time,tmp,sal,dep,dici,alki,o2i,ccflxi,omflx,detflx,flxfin,aomflxin,zsrin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti] = deal(tmp_input{:});
+                bc.tmp = tmp;
+                bc.sal = sal;
+                bc.dici = dici;
+                bc.alki = alki;
+                bc.o2i = o2i;
+                dt = dti;
+            elseif ~warmup_done 
+                stepwarm = false;
+                if stepwarm
+                    time = 0e0;
+                    if int_count ==1 
+                        dt = 1e-2;
+                    else
+                        dt_dt = 1e-1;
+                        dt_dt_max = 1e-1;
+                        dt_max = 1e4;
+                        if dt_dt < dt_dt_max, dt_dt = dt_dt*(1e0+dt_dt); end
+                        dt_dt = max(dt_dt,1e-3);
+                        if dt < dt_max, dt = dt*(1e0+dt_dt); end
+                    end
+                else
+                    time = 0e0;
+                    if int_count<11
+                        dt = 1e2;
+                    elseif int_count<111
+                        dt = 1e3;
+                    elseif int_count<1111
+                        dt = 1e4;
+                    elseif int_count<11111
+                        dt = 1e5;
+                        if strcmpi(biomode, 'labs')
+                            int_count=1;
+                            warmup_done = true;
+                            continue
+                        end
+                    else
+                        warmup_done = true;
+                        int_count = 1;
+                        continue
+                    end
+                end
+            end
+            
+            fprintf('\n');
+            fprintf('time       temp       sal        dep        dici       alki       o2i        ccflxi     \n');
+            fmt=[repmat('%-11.2e',1,8) '\n'];
+            fprintf(fmt,time,tmp,sal,dep,dici,alki,o2i,ccflxi);
+            fprintf('omflx      detflx     flxfin     d13c_ocn   d18o_ocn   capd47_ocn 14C_age    dti        \n');
+            fprintf(fmt,omflx,detflx,flxfin,d13c_ocn,d18o_ocn,capd47_ocn,c14age_ocn,dti);
+            fprintf('zsr        aomflx     \n');
+            fmt=[repmat('%-11.2e',1,2) '\n'];
+            fprintf(fmt,zsrin,aomflxin);
+            fprintf('\n');
+            if ~global_var.def_isotrack
+                flxfrc = zeros(1, global_var.nspcc);
+                flxfrc(1:2) = abs(d13c_ocnf-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn));  % contribution from d13c_ocni
+                flxfrc(3:4) = abs(d13c_ocni-d13c_ocn)/(abs(d13c_ocnf-d13c_ocn)+abs(d13c_ocni-d13c_ocn));  % contribution from d13c_ocnf
+                flxfrc2 = zeros(1,global_var.nspcc);
+                flxfrc2(1) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn));  % contribution from d18o_ocni
+                flxfrc2(3) = abs(d18o_ocnf-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn));  % contribution from d18o_ocni
+                flxfrc2(2) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn));  % contribution from d18o_ocnf
+                flxfrc2(4) = abs(d18o_ocni-d18o_ocn)/(abs(d18o_ocnf-d18o_ocn)+abs(d18o_ocni-d18o_ocn));  % contribution from d18o_ocnf
+                ccflx(:) = 0e0;
+                for isp =1:4
+                    flxfrc2(isp) = flxfrc2(isp)*flxfrc(isp);
+                    ccflx(isp) = ccflxi*flxfrc2(isp);
+                end
+                if abs(ccflxi - sum(ccflx))/ccflxi > global_var.tol
+                    fprintf ('error in calculation in flux');
+                    msg = 'error in calculation in flux, STOP.';
+                    error(msg)
+                end
+                if global_var.def_size 
+                    for isp =5:8
+                        ccflx(isp) = ccflx(isp-4)*(1e0-flxfin);
+                    end
+                    for isp =1:4
+                        ccflx(isp) = ccflx(isp)*flxfin;
+                    end
+                end
+            else 
+                ccflx(:) = 0e0;
+                [ccflx(1:5)] = caco3_main.dic_iso(  ...
+                    d13c_ocn,d18o_ocn,ccflxi   ...
+                    ,global_var.r14ci,capd47_ocn,global_var.c14age_cc   ...
+                    ,global_var.r13c_pdb,global_var.r18o_pdb,global_var.r17o_pdb  ...
+                    ,5   ...
+                    );
+            end
+            
+            if global_var.def_timetrack
+                flxfrc3 = zeros(1,global_var.nspcc);
+                flxfrc3(1:global_var.nspcc/2) = abs(time_min-time)/(abs(time_min-time)+abs(time_max-time));  % contribuion from max age class 
+                flxfrc3(1+global_var.nspcc/2:global_var.nspcc) = abs(time_max-time)/(abs(time_min-time)+abs(time_max-time)); % contribution from min age class 
+                if abs(sum(ccflx)/ccflxi - 1e0) > global_var.tol 
+                    fprintf( 'flx calc in error with including time-tracking pre %17.16e \t%17.16e \n',sum(ccflx),ccflxi );
+                    msg = 'flx calc in error with including time-tracking pre';
+                    error(msg)
+                end
+                for isp =1+global_var.nspcc/2:global_var.nspcc
+                    ccflx(isp)=flxfrc3(isp)*ccflx(isp-global_var.nspcc/2);
+                end
+                for isp =1:global_var.nspcc/2
+                    ccflx(isp)=flxfrc3(isp)*ccflx(isp);
+                end
+                if abs(sum(ccflx)/ccflxi - 1e0)>global_var.tol 
+                    fprintf( 'flx calc in error with including time-tracking aft %17.16e \t%17.16e \n',sum(ccflx),ccflxi );
+                    msg = 'flx calc in error with including time-tracking aft';
+                    error(msg)
+                end 
             end
         end
-
 
         if((~global_var.def_track2) && (~global_var.def_isotrack) )
             % isotope signals represented by caco3 rain fluxes
@@ -349,17 +540,20 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
         end 
 
         % <<<<<<<<<<<<<<<<<<<<<  NEW: 05/13/2019  <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<<
-        if(~global_var.def_size)
-            %  recording fluxes of two types of caco3 separately
-            % write(file_bound,*) time, d13c_ocn, d18o_ocn, (ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
-            fmt=[repmat('%17.16e \t',1,global_var.nspcc+10) '\n'];
-            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn, ccflx(:), tmp, dep, sal, bc.dici,bc.alki, bc.o2i);
-        else
-            %  do not record separately
-            % write(file_bound,*) time, d13c_ocn, d18o_ocn, sum(ccflx(1:4)),sum(ccflx(5:8)),(ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
-            fmt=[repmat('%17.16e \t',1,global_var.nspcc+12) '\n'];
-            fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn,sum(ccflx(1:4)),sum(ccflx(5:8)), ccflx(:), tmp, dep, sal,bc.dici,bc.alki, bc.o2i);
+        if warmup_done
+            if(~global_var.def_size)
+                %  recording fluxes of two types of caco3 separately
+                % write(file_bound,*) time, d13c_ocn, d18o_ocn, (ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
+                fmt=[repmat('%17.16e \t',1,global_var.nspcc+10) '\n'];
+                % time, d13c_ocn, d18o_ocn, capd47_ocn, ccflx(:), tmp, dep, sal, bc.dici,bc.alki, bc.o2i
+                fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn, ccflx(:), tmp, dep, sal, bc.dici,bc.alki, bc.o2i);
+            else
+                %  do not record separately
+                % write(file_bound,*) time, d13c_ocn, d18o_ocn, sum(ccflx(1:4)),sum(ccflx(5:8)),(ccflx(isp),isp=1,nspcc),temp, dep, sal,dici,alki, o2i
+                fmt=[repmat('%17.16e \t',1,global_var.nspcc+12) '\n'];
+                fprintf(file_boundid,fmt, time, d13c_ocn, d18o_ocn, capd47_ocn,sum(ccflx(1:4)),sum(ccflx(5:8)), ccflx(:), tmp, dep, sal,bc.dici,bc.alki, bc.o2i);
 
+            end
         end
         % <<<<<<<<<<<<<<<<<<<<<  NEW: 05/13/2019  <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<<<<<<
 
@@ -973,8 +1167,6 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
             fprintf(strcat('rho:\t',fmt),rho(1:interval:global_var.nz))
             fprintf(strcat('frc:\t',fmt),frt(1:interval:global_var.nz))
 
-            fprintf('\n');
-            fprintf('\n');
             fprintf('\n');
         end
 
