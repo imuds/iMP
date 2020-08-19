@@ -141,6 +141,8 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     co2chem = 'simple';
     if(global_var.def_co2sys)
         co2chem = 'co2sys';
+        addpath (pwd)
+        addpath (strcat(pwd,'\CO2SYS-MATLAB\src'))
     end
 
     dw = zeros(1, global_var.nz);                       % burial rate change

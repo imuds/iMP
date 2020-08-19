@@ -12,7 +12,7 @@ classdef lysocline_exp
     
     methods(Static)
         
-        function run_all_lysocline_exp_ox(folder)
+        function run_all_lysocline_exp_ox(biomode,folder)
             %% do oxic-only lysocline experiment as in manuscript
             
             % specify folder where results should be saved (same for oxic-only and oxic-anoxic for plotting reasons, e.g.:
@@ -31,7 +31,7 @@ classdef lysocline_exp
                             cc_rain_flx = j*6e-6
                             dep = i*6.0/25
                             rr = rainratio(k)
-                            run_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), folder);
+                            run_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), biomode, folder);
 %                            caco3_test.chk_through_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), folder);
                         end
                     end
@@ -42,7 +42,7 @@ classdef lysocline_exp
             
         end
         
-        function run_all_lysocline_exp_oxanox(folder)
+        function run_all_lysocline_exp_oxanox(biomode, folder)
             %% do oxic-anoxic lysocline experiment as in manuscript
             
             % specify folder where results should be saved (same for oxic-only and oxic-anoxic for plotting reasons, e.g.:
@@ -62,7 +62,7 @@ classdef lysocline_exp
                             cc_rain_flx = j*6e-6
                             dep = i*6.0/25
                             rr = rainratio(k)
-                            run_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), folder);
+                            run_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), biomode, folder);
 %                            caco3_test.chk_through_sig_iso_dtchange(cc_rain_flx, rainratio(k), dep, dt, switch_oxonly(l), folder);
                         end
                     end
