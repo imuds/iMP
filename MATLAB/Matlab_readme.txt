@@ -4,18 +4,32 @@
 
 1) The function to run the model can be found in the file run_sig_iso_dtchange.m and can be executed via:
 
-run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, folder) 
+run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonly_in, biotmode, folder) 
 
-and example call would be: run_sig_iso_dtchange(6.0e-5, 1.5, 0.24, 1d8, true, '1207_test')
+and example call would be: run_sig_iso_dtchange(12e-6, 0.7, 3.5, 1d8, false, 'fickian', '1207_test')
+
+Inputs are respectively: 
+
+CaCO3 rain flux (mol cm-2 yr-1), 
+OM/CaCO3 rain ratio, 
+water depth (km), 
+time step for each iteration (yr),
+OM degradation model (oxic only degradation if true; oxic and anoxic degradation if false), 
+bioturbation mode ('fickian','nobio','labs' or 'turbo2' for Fickian-, no-, LABS- and homogeneous-mixing, respectively), and 
+simulation name (which becomes the name of directory where results are stored). 
+
+If one chooses to use input files to define boundary conditions (def_reading = true), 
+values for cc_rain_flx_in, rainratio_in, dep_in, dt_in are not reflected in as they are read from input file
+(see, e.g., Examples 2-4 below) 
 
 
-2) To run the lysocline experiments (i.e., Section 3.1 in the manuscript) execuet the functions in the file lysocline_exp.m
+2) To run the lysocline experiments (i.e., Section 3.1 in the manuscript) execute the functions in the file lysocline_exp.m
 
 
 3) Subroutines of the main code can be found in caco3_main.m
 
 
-4) CaCO3 therdomynamic subroutines & functions are in caco3_therm.m 
+4) CaCO3 thermodynamic subroutines & functions are in caco3_therm.m (and call_co2sys.m when you use CO2SYS; see Matlab_readme_CO2SYS.txt for the details)
 
 
 5) Test functions used during model development can be found in caco3_test.m 
@@ -32,110 +46,179 @@ are defined under properties of the class caco3_main.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%% Plotting of the results is curently possible with the following python scripts (folder of model results and number of CaCO3 classes has to be specified in these python scripts):
+%%%%% Plotting of the results is possible with python scripts in iMP/plot/ direactory:
 
-1) matlab_caco3_profiles_sum_multi_v3.py	:	plots the geochemical profiles, e.g. as in Fig. 3 of the masnuscript
+1) caco3_lys.py		    :	plots the lysocline results for oxic-only and oxic-anoxic OM degradation model, e.g. as in Figs. 7+8 of the manuscript
 
-2) matlab_caco3_lys_oxanox_sum_v3.py		:	plots the lysocline results for oxic-only and oxic-anoxic OM degradation model, e.g. as in 								Figs. 5+6 of the masnuscript
+2) caco3_signals_xx.py  :	plots the time change of the proxy signals, e.g. as in Fig. 10 of the manuscript
 
-3) matlab_caco3_signals.py			:	plots the time change of the proxy signals, e.g. as in Fig. 8 of the masnuscript
+In these plot scripts, you need to specigy that 
 
+    a) you are using the MATLAB version 
+    
+    b) your experiment name (the same as input folder in the function run_sig_iso_dtchange)
+    
+    c) subdirectory name for caco3_signals_xx.py: 
+        cc-xx_rr-yy-dep-zz, where xx is CaCO3 rainflux value, yy is OM/CaCO3 rain ratio and dep is water depth
+
+    See the comments on these scripts or readme in /iMP/plot/ directory
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%			  GMD manuscript experiments				%%%%%%
+%%%%%%			Examples:  model development paper experiments				%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figure 3:
+%%%%%%%%%%%%  1) Section 3.1:
 change properties in caco3_main:
 def_sense = true;       % without signal tracking
-set default boundary conditions as in Table 1
-execute as:
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig3')
+Can be executed by calling the 2 functions in lysocline_exp.m 
+- one for the oxic only model (i.e. lysocline_exp.run_all_lysocline_exp_ox('fickian', 'your_simulation_name')) and 
+one for the oxic-anoxic model (lysocline_exp.run_all_lysocline_exp_oxanox('fickian', 'your_simulation_name')). 
+Results are saved in the same folder - here 'your_simulation_name' under ../imp_output/matlab/ directory
 
-%%%%%% plotting of profiles is done with the python script matlab_caco3_profiles_sum_multi_v3.py using data from the following files:
-below XX =  total recording time of sediment profiles (e.g. 01 - 15)
-
-matlab_ptx-0XX.txt: contains clay data. Columns: depth (cm), age(yr), clay wt%, sld sediment density (g cm-3), sld vol. fraction (cm3 cm-3), burial velocity (cm yr-1)
-matlab_ccx-0XX.txt: contains caco3 data. Columns: depth (cm), age(yr), CaCO3 wt%, DIC (M), ALK (M), capdelta-CO3 (M), dissolution rate,  pH
-matlab_omx-0XX.txt: contains OM data. Columns: depth (cm), age(yr), OM wt%
-matlab_o2-0XX.txt: contains O2 data. Columns: depth (cm), age(yr), O2 (M), oxic degradation rate (mol cm-3 yr-1), anoxic degradation rate (mol cm-3 yr-1)
-
+%%%%%% plotting of results is done with the python script caco3_lys.py in /iMP/plot/ directory
+In the script, you need clarify you are plotting matlab results (i.e., matlab = True) and OM degradation model (ox = True or oxanox = True),
+and enter your_simulation_name (see the comments on the script or readme in /iMP/plot/ directory)
+ 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figure 4:
-This is the depth profiles of dissolution exp. #2. (see Fig. 10 instruction)
-
-%%%%%% plotting of profiles is done with the python script matlab_caco3_profiles_sum_multi_v3.py using data from the following files:
-below XX =  total recording time of sediment profiles (e.g. 01 - 15)
-
-matlab_ptx-0XX.txt: contains clay data. Columns: depth (cm), age(yr), clay wt%, sld sediment density (g cm-3), sld vol. fraction (cm3 cm-3), burial velocity (cm yr-1)
-matlab_ccx-0XX.txt: contains caco3 data. Columns: depth (cm), age(yr), CaCO3 wt%, DIC (M), ALK (M), capdelta-CO3 (M), dissolution rate,  pH
-matlab_omx-0XX.txt: contains OM data. Columns: depth (cm), age(yr), OM wt%
-matlab_o2-0XX.txt: contains O2 data. Columns: depth (cm), age(yr), O2 (M), oxic degradation rate (mol cm-3 yr-1), anoxic degradation rate (mol cm-3 yr-1)
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figures 5 + 6:
+%%%%%%%%%%%%  2) Section 3.2.1:
 change properties in caco3_main:
-def_sense = true;       % without signal tracking
-Can be executed by calling the 2 functions in lysocline_exp.m - one for the oxic only model (i.e. lysocline_exp.run_all_lysocline_exp_ox('000_test')) and one for the oxic-anoxic model (lysocline_exp.run_all_lysocline_exp_ox('000_test')). Results are saved in the same folder - here 000_test for plotting purposes
-
-CaCO3 wt% and burial results are stored in lys_sense_cc-xx_rr-yy.txt and ccbur_sense_cc-xx_rr-yy.txt files, respectively,
-   where xx and yy are CaCO3 rain flux and OM/CaCO3 rain ratio, respectively
-
-%%%%%% plotting of results is done with the python script matlab_caco3_lys_oxanox_sum_v3.py using data from the following files lys_sense_cc-xx_rr-yy.txt and ccbur_sense_cc-xx_rr-yy.txt
-matlab_lys_sense_cc-xx_rr-yy.txt: contains caco3 and sld sediment vol. frac. data. Columns: DCO3 (uM), CaCO3 wt% (surface), sld sed. vol. frac. (surface),CaCO3 wt% (mixed layer), sld sed. vol. frac. (mixed layer), CaCO3 wt% (bottom), sld sed. vol. frac. (bottom) 
-matlab_ccbur_sense_cc-xx_rr-yy.txt: contains caco3 burial flux and sld sediment vol. frac. data. Columns: DCO3 (uM), CaCO3 burial fulx 
-(xx and yy are CaCO3 rain flux and OM/CaCO3 rain ratio)
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figures 8 (Section 3.2.1):
-change properties in caco3_main:
-def_sense = false;       	% with signal tracking
-def_biotest = true;   		% testing 5kyr signal change event
+def_reading = true;       	% use input file to specify temporal changes in boundary conditions and proxy signal values
 def_nodissolve = true/false; 	% to switch caco3 dissolution on and off
-TO SET DIFFERENT MIXING STYLES SET ONE OF THE FOLLOWING TO 'TRUE' - OR ALL 'FALSE' FOR FICKIAN MIXING:
-def_allnobio = false;       	% without bioturbation?
-def_allturbo2 = false;      	% all turbo2 mixing
-def_alllabs = false;        	% all labs mixing
-def_allnonlocal = false; 	% ON if assuming non-local mixing (i.e., if labs or turbo2 is ON)
+set all other def_xx values false
+
+Prepare input file for the simulation: 
+move rectime_EXAMPLE-BIOT.in and imp_input_EXAMPLE-BIOT.in in /input/EXAMPLES/ directory to /input/ directory and rename them as rectime.in and imp_imput.in, respectively.
+You can do this in comand line as follows:
+'cd ../input' 
+'cp EXAMPLES/rectime_EXAMPLE-BIOT.in rectime.in'
+'cp EXAMPLES/imp_input_EXAMPLE-BIOT.in imp_input.in'
 
 Execute experiment (with default boundary conditions) by 
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig8')
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, false, 'fickian', 'biot_sim')
+input 'fickian' can be replaced by 'nobio', 'labs' or 'turbo2' to examine effect of different styles of bioturbation
+(note that inputs of CaCO3 rain flux, rain tatio, water depth and time step in the above function
+are meaningless as they are overwritten by inpuf file data when one uses input file to specify temporal changes of boundary conditions)
 
-%%%%% plotting of results is done with the python script matlab_caco3_signals.py using data from the following files 
-matlab_rectime.txt	% includes the year when sediment profiles are recorded
-matlab_sigmly.txt	% includes signal values at mixed layer bottom: relative time (yr), d13C, d18O, CaCO3 wt%, clay wt%
-matlab_bound.txt	% includes boundary fluxes: time(yr), d13C, d18O, CaCO3 flux (mol cm-2 yr-1), temperature (C),  depth (km),  salinity (permil), DIC (uM),  ALK(uM)  O2(uM)
+%%%%% plotting of results is done with the python script caco3_signals_biotest.py  
+In the script, you need clarify you are plotting matlab results (i.e., component of list code = 'matlab')  
+and specify simulation name (list simname) as well as subfolder name (list filename)
+and plot style (pltstyle = 'diagdep')
+(see the comments in the script or readme in /iMP/plot/ directory)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figures 10 (Section 3.2.2):
+%%%%%%%%%%%%  3) Section 3.2.2:
 change properties in caco3_main:
-def_sense = false;       	% with signal tracking
-def_biotest = false;   		% 50 kyr experiment not the 5kyr signal change event
-TO SET DIFFERENT MIXING STYLES SET ONE OF THE FOLLOWING TO 'TRUE' - OR ALL 'FALSE' FOR FICKIAN MIXING:
-def_allnobio = false;       	% without bioturbation?
-def_allturbo2 = false;      	% all turbo2 mixing
-def_allnonlocal = false; 	% ON if assuming non-local mixing (i.e., if labs or turbo2 is ON)
-change the maximum depth in the actual code in run_sig_iso_dtchange() line 25, e.g.:
-dep_max = 5.0d0;    %   max depth to be changed to during the experiment
+def_reading = true;       	% use input file to specify temporal changes in boundary conditions and proxy signal values
+set all other def_xx values false
+
+Prepare input file for the simulation: 
+move rectime_EXAMPLE-DIS.in and imp_input_EXAMPLE-DIS-xx.in in /input/EXAMPLES/ directory to /input/ directory and rename them as rectime.in and imp_imput.in, respectively.
+You can do this in comand line as follows:
+'cd ../input' 
+'cp EXAMPLES/rectime_EXAMPLE-DIS.in rectime.in'
+'cp EXAMPLES/imp_input_EXAMPLE-DIS-xx.in imp_input.in'
 
 Execute experiment (with default boundary conditions) by 
-run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, true, '2207_Fig10')
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, false, 'fickian', 'dis_exp')
+input 'fickian' can be replaced by 'nobio' or 'turbo2' to examine effect of different styles of bioturbation
+(note that inputs of CaCO3 rain flux, rain tatio, water depth and time step in the above function
+are meaningless as they are overwritten by inpuf file data when one uses input file to specify temporal changes of boundary conditions)
 
-%%%%% plotting of results is done - as for Fig. 8 - with the python script matlab_caco3_signals.py using data from the following files 
-matlab_rectime.txt	% includes the year when sediment profiles are recorded
-matlab_sigmly.txt	% includes signal values at mixed layer bottom: relative time (yr), d13C, d18O, CaCO3 wt%, clay wt%
-matlab_bound.txt	% includes boundary fluxes: time(yr), d13C, d18O, CaCO3 flux (mol cm-2 yr-1), temperature (C),  depth (km),  salinity (permil), DIC (uM),  ALK(uM)  O2(uM)
+%%%%% plotting of results is done with the python script caco3_signals_disall.py  
+In the script, you need clarify you are plotting matlab results (i.e., component of list code = 'matlab')  
+and specify simulation name (list simname) as well as subfolder name (list filename)
+and plot style (pltstyle = 'diagdep')
+(see the comments in the script or readme in /iMP/plot/ directory)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%  Figures 12 (Section 3.2.3):
+%%%%%%%%%%%%  4) Section 3.2.3:
+change properties in caco3_main:
+def_reading = true;       	% use input file to specify temporal changes in boundary conditions and proxy signal values
+def_size = true;            % also track a characteristic 'size' 
+set all other def_xx values false
+
+Prepare input file for the simulation: 
+move rectime_EXAMPLE-SIZE.in and imp_input_EXAMPLE-SIZE.in in /input/EXAMPLES/ directory to /input/ directory and rename them as rectime.in and imp_imput.in, respectively.
+You can do this in command line as follows:
+'cd ../input' 
+'cp EXAMPLES/rectime_EXAMPLE-SIZE.in rectime.in'
+'cp EXAMPLES/imp_input_EXAMPLE-SIZE.in imp_input.in'
+
+Execute experiment (with default boundary conditions) by 
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, false, 'fickian', 'size_exp')
+input 'fickian' can be replaced by 'nobio' or 'turbo2' to examine effect of different styles of bioturbation
+(note that inputs of CaCO3 rain flux, rain ratio, water depth and time step in the above function
+are meaningless as they are overwritten by input file data when one uses input file to specify temporal changes of boundary conditions)
+
+%%%%% plotting of results is done with the python script caco3_signals_size.py  
+In the script, you need clarify you are plotting matlab results (i.e., component of list code = 'matlab')  
+and specify simulation name (list simname) as well as subfolder name (list filename)
+and plot style (pltstyle = 'diagdep')
+(see the comments in the script or readme in /iMP/plot/ directory)
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%  5) Section S1.1.1:
 This has not been tested in matlab yet as it takes a very long time already in fortran to run.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%  6) Section S1.1.2:
+change properties in caco3_main:
+def_reading = true;       	% use input file to specify temporal changes in boundary conditions and proxy signal values
+def_isotrack = true;            % tracking isotopologues 
+def_kie = true/false;   % true to check kinetic isotope effect on clumped isotope
+set all other def_xx values false
+
+Prepare input file for the simulation: 
+move rectime_EXAMPLE-ISO.in and imp_input_EXAMPLE-ISO.in in /input/EXAMPLES/ directory to /input/ directory and rename them as rectime.in and imp_imput.in, respectively.
+You can do this in command line as follows:
+'cd ../input' 
+'cp EXAMPLES/rectime_EXAMPLE-ISO.in rectime.in'
+'cp EXAMPLES/imp_input_EXAMPLE-ISO.in imp_input.in'
+
+Execute experiment (with default boundary conditions) by 
+run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, false, 'fickian', 'iso_exp')
+input 'fickian' can be replaced by 'nobio' or 'turbo2' to examine effect of different styles of bioturbation
+(note that inputs of CaCO3 rain flux, rain ratio, water depth and time step in the above function
+are meaningless as they are overwritten by input file data when one uses input file to specify temporal changes of boundary conditions)
+
+%%%%% plotting of results is done with the python script caco3_signals_size.py  
+In the script, you need clarify you are plotting matlab results (i.e., component of list code = 'matlab')  
+and specify simulation name (list simname) as well as subfolder name (list filename)
+and plot style (pltstyle = 'diagdep')
+(see the comments in the script or readme in /iMP/plot/ directory)
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%  7) Section S1.2:
+change properties in caco3_main:
+def_sense = true;       % without signal tracking
+def_co2sys = true;      % use CO2SYS
+Can be executed by calling the 2 functions in lysocline_exp.m 
+- one for the oxic only model (i.e. lysocline_exp.run_all_lysocline_exp_ox('fickian', 'your_simulation_name')) and 
+one for the oxic-anoxic model (lysocline_exp.run_all_lysocline_exp_oxanox('fickian', 'your_simulation_name')). 
+Results are saved in the same folder - here 'your_simulation_name' under ../imp_output/matlab/ directory
+
+%%%%%% plotting of results is done with the python script caco3_lys.py in /iMP/plot/ directory
+In the script, you need clarify you are plotting matlab results (i.e., matlab = True) and OM degradation model (ox = True or oxanox = True),
+and enter your_simulation_name (see the comments on the script or readme in /iMP/plot/ directory)
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%  8) Section S1.3:
+Repeat experiments in Section 3.2 with 
+def_timetrack = true;
+to enable addtional tracking of model time
+
+%%%%% plotting of results is done with the python scripts   
+See instructions for experiments in Section 3.2
+Note that you can choose a different plot style (e.g., pltstyle = 'time' which plot signals against model time)
+(see the comments in the script or readme in /iMP/plot/ directory)
