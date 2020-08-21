@@ -30,8 +30,8 @@ n_par = len(par_names)
 dt = 10.
 #--- start and end time of simulation 
 time_start = 0.
-# time_end = 100e3 
-time_end = 200e3 
+# time_end = 100e3   # choose for biot exp 
+time_end = 200e3   # choose for diss exp 
 n_step = int((time_end-time_start)/dt) + 1
 
 inputdata = np.zeros((n_step,n_par),dtype=np.float)
@@ -51,7 +51,8 @@ par_values_base = [
     # ,12e-6*1.5 #OM 
     ,12e-6*1./9.*100.  # detrital 
     ,0.5  # fraction fine 
-    ,2e-6  # AOM 
+    # ,2e-6  # AOM 
+    ,0.0  # AOM 
     ,10.   # bottom of SRZ 
     ,0.    
     ,0.   
@@ -73,8 +74,8 @@ par_values_spec = [
     # ,[[time_start,time_end],[1.0,1.0]]  #dep 
     # ,[[time_start,time_end],[2.0,2.0]]  #dep 
     # ,[[time_start,time_end],[3.0,3.0]]  #dep 
-    # ,[[time_start,time_end],[3.5,3.5]]  #dep 
-    ,[[time_start,time_end],[4.5,4.5]]  #dep 
+    ,[[time_start,time_end],[3.5,3.5]]  #dep 
+    # ,[[time_start,time_end],[4.5,4.5]]  #dep 
     # ,[[time_start,time_end],[4.6,4.6]]  #dep 
     # ,[[time_start,time_end],[5.0,5.0]]  #dep 
     ,[]  # dic
@@ -83,18 +84,18 @@ par_values_spec = [
     ,[]  # ccflx
     ,[]  # omflx 
     ,[]  # detflx
-    # ,[[time_start,40e3,65e3,90e3,time_end],[0.5,0.5,0.1,0.5,0.5]]  # flxfin
-    ,[]  # flxfin
+    ,[[time_start,40e3,65e3,90e3,time_end],[0.5,0.5,0.1,0.5,0.5]]  # flxfin
+    # ,[]  # flxfin
     ,[]  # AOM
     ,[]  # bottom of SRZ
-    ,[[time_start,40e3,45e3,85e3,90e3,time_end],[2.,2.,-1.,-1.,2.,2.]]  # d13c
-    # ,[[time_start,40e3,45e3,time_end],[2.,2.,-1.,-1.]]  # d13c
-    ,[[time_start,40e3,65e3,90e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
-    # ,[[time_start,40e3,42.5e3,45e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o
-    ,[[time_start,40e3,65e3,90e3,time_end],[0.6,0.6,0.5,0.6,0.6]]  # capd47
+    ,[[time_start,40e3,45e3,85e3,90e3,time_end],[2.,2.,-1.,-1.,2.,2.]]  # d13c  (diss exp)
+    # ,[[time_start,40e3,45e3,time_end],[2.,2.,-1.,-1.]]  # d13c, choose for biot exp
+    ,[[time_start,40e3,65e3,90e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o (diss exp)
+    # ,[[time_start,40e3,42.5e3,45e3,time_end],[1.,1.,-1.,1.,1.]]  # d18o  (biot exp)
+    ,[[time_start,40e3,65e3,90e3,time_end],[0.6,0.6,0.5,0.6,0.6]]  # capd47  
     # ,[]  # capd47
-    # ,[]  # 14cage
-    ,[[time_start,time_end],[1e3,1e3]]  #14cage
+    ,[]  # 14cage
+    # ,[[time_start,time_end],[1e3,1e3]]  #14cage
     # ,[[time_start,40e3,45e3,85e3,90e3,time_end],[10e3,10e3,5e3,5e3,10e3,10e3]]  # 14cage
     ,[]  # dt
     ]
@@ -116,10 +117,10 @@ np.savetxt(saveplace+'/'+filename,inputdata)
 n_rec = 15
 rectime = np.zeros(n_rec)
 rectime[:5]= np.linspace(dt,40e3,5)
-rectime[5:10]=np.linspace(40e3+dt,90e3,5)
-# rectime[5:10]=np.linspace(40e3+dt,45e3,5)
-rectime[10:15]=np.linspace(90e3+dt,200e3,5)
-# rectime[10:15]=np.linspace(45e3+dt,100e3,5)
+rectime[5:10]=np.linspace(40e3+dt,90e3,5)  # choose for diss. exp.
+rectime[10:15]=np.linspace(90e3+dt,200e3,5)  # choos for diss exp. 
+# rectime[5:10]=np.linspace(40e3+dt,45e3,5)  # choose for biot exp
+# rectime[10:15]=np.linspace(45e3+dt,100e3,5)  # choose for biot exp
 
 
 filename = 'rectime.in'
