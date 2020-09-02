@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import subprocess
-import os
+import os,sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
@@ -9,32 +9,201 @@ from matplotlib.ticker import MultipleLocator
 caco3 signal profiles 
 """
 
-plt.rcParams['font.family'] = 'Arial' 
-plt.rcParams['font.size'] = 16
+def sigplot_ex(code,ox,oxanox,labs,turbo2,nobio,filename,simname
+            ,i,axes,pltstyle):
+    
+    # the following part is used to specify the location of individual result data 
+    # in consistent with how and where to record the results 
+    Workdir = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    Workdir += '/imp_output/'
+    # Workdir = 'C:/cygwin64/home/YK/imp_output/'
+    # Workdir = 'E:/imp_output/'
+    Workdir += code+'/'
+    Workdir += simname
+    Workdir += '/profiles/'
+    if labs:
+        if oxanox:Workdir += 'oxanox_labs/'
+        else:Workdir += 'ox_labs/'
+        label = 'Mixing by LABS'
+    elif nobio:
+        if oxanox:Workdir += 'oxanox_nobio/'
+        else:Workdir += 'ox_nobio/'
+        label = 'No bioturbation'
+    elif turbo2:
+        if oxanox:Workdir += 'oxanox_turbo2/'
+        else:Workdir += 'ox_turbo2/'
+        label='Homogeneous mixing'
+    else: 
+        if oxanox:Workdir += 'oxanox/'
+        else: Workdir += 'ox/'
+        label ='Fickian mixing'
+        
+    Workdir += filename
+    Workdir += '/'
+    
+    rectime = np.loadtxt(Workdir+'rectime.txt')
+    sig = np.loadtxt(Workdir+'sigmly.txt',skiprows = 30)
+    sigf = np.loadtxt(Workdir+'sigmlyd.txt',skiprows = 30)
+    recz = np.loadtxt(Workdir+'recz.txt')
 
-linewidth = 1.5
+    ls = np.array([':','-','-','--'])
+    dsp = [(1,3),(5,0),(5,5),[5,3,1,3]]
+    cc = 'k'
+    cf = 'royalblue'
+    
+    ls = ['-']*4
+    dsp = [(5,0)]*4
+    cls = ['hotpink','royalblue','limegreen','orange']
+    refc = 'k'
+    refls = ':'
+    refds = (1,1)
+    reflw = 2
 
-plt.rcParams['axes.linewidth'] = linewidth
+    if pltstyle == 'diagdep':
+        bound = np.loadtxt(Workdir+'bound.txt', skiprows=5)
+        zrec = np.zeros(sig[:,0].shape[0])
+        zrec[-1]=recz[1,2]
+        for k in reversed(range(sig[:,0].shape[0]-1)):
+            zrec[k] = zrec[k+1]+sig[k,15]*0.5*(sig[k+1,16]+sig[k+1,16])*(sig[k+1,17]-sig[k,17])  
+        
+        zrecf = np.zeros(sig[:,0].shape[0])
+        zrecf[-1]=recz[0,2]
+        for k in reversed(range(sigf[:,0].shape[0]-1)):
+            zrecf[k] = zrecf[k+1]+sigf[k,15]*0.5*(sigf[k+1,16]+sigf[k+1,16])*(sigf[k+1,17]-sigf[k,17])  
 
-plt.rcParams['xtick.major.width'] = linewidth
-plt.rcParams['xtick.major.size'] = 8
-plt.rcParams['xtick.minor.width'] = linewidth
-plt.rcParams['xtick.minor.size'] = 4
-plt.rcParams['xtick.major.pad'] = 8
+        xp = sig[:,0]
+        yp = zrec[:]
+        zrecb=np.interp(bound[:,0],xp,yp)
+        xp = sigf[:,0]
+        yp = zrecf[:]
+        zrecfb=np.interp(bound[:,0],xp,yp)
+        
+        lw = 2
+        dspf = (1,1.5)
+        
+        axes[0].plot(sig[:,8],zrec,refls,c=cls[i], dashes=refds,lw = reflw
+                     )
+        if i==0:axes[0].plot(sigf[:,5],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        else:axes[0].plot(sigf[:,5],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        axes[1].plot(sig[:,9],zrec,refls,c=cls[i], dashes=refds,lw = reflw
+                 )
+        if i!=0:axes[1].plot(sigf[:,6],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        else:axes[1].plot(sigf[:,6],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        
+        axes[2].plot(sig[:,10],zrec,refls,c=cls[i], dashes=refds,lw = reflw,label='coarse'
+                     )
+        if i!=0:axes[2].plot(sigf[:,7],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
+        else:axes[2].plot(sigf[:,7],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
 
-plt.rcParams['ytick.major.width'] = linewidth
-plt.rcParams['ytick.major.size'] = 8
-plt.rcParams['ytick.minor.width'] = linewidth
-plt.rcParams['ytick.minor.size'] = 4
-plt.rcParams['ytick.major.pad'] = 8
+    elif pltstyle == 'diagdep_time':
+        bound = np.loadtxt(Workdir+'bound.txt', skiprows=5)
+        zrec = np.zeros(sig[:,0].shape[0])
+        zrec[-1]=recz[1,2]
+        for k in reversed(range(sig[:,0].shape[0]-1)):
+            zrec[k] = zrec[k+1]+sig[k,15]*0.5*(sig[k+1,16]+sig[k+1,16])*(sig[k+1,17]-sig[k,17])  
+        
+        zrecf = np.zeros(sig[:,0].shape[0])
+        zrecf[-1]=recz[0,2]
+        for k in reversed(range(sigf[:,0].shape[0]-1)):
+            zrecf[k] = zrecf[k+1]+sigf[k,15]*0.5*(sigf[k+1,16]+sigf[k+1,16])*(sigf[k+1,17]-sigf[k,17])  
 
-plt.rcParams['axes.labelpad'] = 8
+        xp = sig[:,0]
+        yp = zrec[:]
+        zrecb=np.interp(bound[:,0],xp,yp)
+        xp = sigf[:,0]
+        yp = zrecf[:]
+        zrecfb=np.interp(bound[:,0],xp,yp)
+        
+        lw = 2
+        dspf = (1,1.5)
+        
+        axes[0].plot(sig[:,8],zrec,refls,c=cls[i], dashes=refds,lw = reflw
+                     )
+        if i==0:axes[0].plot(sigf[:,5],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        else:axes[0].plot(sigf[:,5],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        axes[1].plot(sig[:,9],zrec,refls,c=cls[i], dashes=refds,lw = reflw
+                 )
+        if i!=0:axes[1].plot(sigf[:,6],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        else:axes[1].plot(sigf[:,6],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        
+        axes[2].plot((sig[:,13]-rectime[4])/1e3,zrec,refls,c=cls[i], dashes=refds,lw = reflw
+                     )
+        if i!=0:axes[2].plot((sigf[:,12]-rectime[4])/1e3,zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        else:axes[2].plot((sigf[:,12]-rectime[4])/1e3,zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        
+        axes[3].plot(sig[:,10],zrec,refls,c=cls[i], dashes=refds,lw = reflw,label = 'coarse'
+                     )
+        if i!=0:axes[3].plot(sigf[:,7],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
+        else:axes[3].plot(sigf[:,7],zrecf,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
 
-plt.rcParams['xtick.direction']='in'
-plt.rcParams['ytick.direction']='in'
+    elif pltstyle == 'time':
+    
+        axes[0].plot(sig[:,8],(sig[:,13]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw
+                     )
+        axes[0].plot(sigf[:,5],(sigf[:,12]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[1].plot(sig[:,9],(sig[:,13]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw
+                 )
+        axes[1].plot(sigf[:,6],(sigf[:,12]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        
+        axes[2].plot(sig[:,10],(sig[:,13]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw,label = 'coarse'
+                     )
+        axes[2].plot(sigf[:,7],(sigf[:,12]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
+                     
+    elif pltstyle == 'diagtime':
 
-plt.tick_params(top=True)
-plt.tick_params(right=True)
+        axes[0].plot(sig[:,8],(sig[:,0]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw
+                     )
+        axes[0].plot(sigf[:,5],(sigf[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[1].plot(sig[:,9],(sig[:,0]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw
+                 )
+        axes[1].plot(sigf[:,6],(sigf[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        
+        axes[2].plot(sig[:,10],(sig[:,0]-rectime[4])/1e3,refls,c=cls[i], dashes=refds,lw = reflw,label = 'coarse'
+                     )
+        axes[2].plot(sigf[:,7],(sigf[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label='fine'
+                     )
 
 def sigplot(code,ox,oxanox,labs,turbo2,nobio,filename,simname
             ,i,ax1,ax2,ax4,pltstyle):
@@ -178,6 +347,10 @@ def sigplot(code,ox,oxanox,labs,turbo2,nobio,filename,simname
                      )
 
 def main():
+    if not os.getcwd() in sys.path: sys.path.append(os.getcwd())
+    import plot_settings
+    plot_settings.plot_settings()
+    
     nexp = 3  # Here you can specify the number of plot, 1 to 3 
 
     ox = np.zeros(nexp,dtype=bool)

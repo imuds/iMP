@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import subprocess
-import os
+import os,sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from matplotlib import mathtext
@@ -11,32 +11,181 @@ mathtext.FontConstantsBase = mathtext.ComputerModernFontConstants
 caco3 signal profiles including clumped isotopes
 """
 
-plt.rcParams['font.family'] = 'Arial' 
-plt.rcParams['font.size'] = 16
+def sigplot_wokie(code,ox,oxanox,labs,turbo2,nobio,simname
+            ,filename,i,axes
+            ,pltstyle
+            ):
+    
+    # the following part is used to specify the location of individual result data 
+    # in consistent with how and where to record the results 
+    Workdir = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    Workdir += '/imp_output/'
+    # Workdir = 'C:/cygwin64/home/YK/imp_output/'
+    Workdir += code+'/'+simname+'/'
+    Workdir += 'profiles/'
+    if labs:
+        if oxanox:Workdir += 'oxanox_labs/'
+        else:Workdir += 'ox_labs/'
+    elif nobio:
+        if oxanox:Workdir += 'oxanox_nobio/'
+        else:Workdir += 'ox_nobio/'
+        label = 'No bioturbation'
+    elif turbo2:
+        if oxanox:Workdir += 'oxanox_turbo2/'
+        else:Workdir += 'ox_turbo2/'
+        label='Homogeneous mixing'
+    else: 
+        if oxanox:Workdir += 'oxanox/'
+        else: Workdir += 'ox/'
+        label ='Fickian mixing'
+    
+    Workdir += filename
+    Workdir += '/'
+    
+    rectime = np.loadtxt(Workdir+'rectime.txt')
+    sig = np.loadtxt(Workdir+'sigmly.txt',skiprows=40)
+    bound = np.loadtxt(Workdir+'bound.txt')
+    recz = np.loadtxt(Workdir+'recz.txt')
 
-linewidth = 1.5
+    ckie = 'g'
 
-plt.rcParams['axes.linewidth'] = linewidth
 
-plt.rcParams['xtick.major.width'] = linewidth
-plt.rcParams['xtick.major.size'] = 8
-plt.rcParams['xtick.minor.width'] = linewidth
-plt.rcParams['xtick.minor.size'] = 4
-plt.rcParams['xtick.major.pad'] = 8
+    ls = np.array([':','--','-'])
+    dsp = [(1,2),(5,2),[5,2,1,2]]
+    
+    ls = ['-']*4
+    dsp = [(5,0)]*4
+    # cls = ['b','r','g','m']
+    cls = ['hotpink','royalblue','limegreen','orange']
+    refc = 'k'
+    refls = ':'
+    refds = (1,1)
+    reflw = 2
+    
 
-plt.rcParams['ytick.major.width'] = linewidth
-plt.rcParams['ytick.major.size'] = 8
-plt.rcParams['ytick.minor.width'] = linewidth
-plt.rcParams['ytick.minor.size'] = 4
-plt.rcParams['ytick.major.pad'] = 8
+    if pltstyle== 'diagdep':
+        zrec = np.zeros(sig[:,0].shape[0])
+        zrec[-1]=recz[0,2]
+        for k in reversed(range(sig[:,0].shape[0]-1)):
+            zrec[k] = zrec[k+1]+sig[k,9]*0.5*(sig[k+1,10]+sig[k+1,10])*(sig[k+1,11]-sig[k,11]) 
 
-plt.rcParams['axes.labelpad'] = 8
+        xp = sig[:,0]
+        yp = zrec[:]
+        zrecb=np.interp(bound[:,0],xp,yp)
 
-plt.rcParams['xtick.direction']='in'
-plt.rcParams['ytick.direction']='in'
+        axes[0].plot(sig[:,1],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
 
-plt.tick_params(top=True)
-plt.tick_params(right=True)
+        axes[1].plot(sig[:,2],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        axes[2].plot(sig[:,3],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[3].plot(sig[:,5]/1e3,zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[4].plot(sig[:,6],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+    
+
+    if pltstyle== 'diagdep_time':
+        zrec = np.zeros(sig[:,0].shape[0])
+        zrec[-1]=recz[0,2]
+        for k in reversed(range(sig[:,0].shape[0]-1)):
+            zrec[k] = zrec[k+1]+sig[k,9]*0.5*(sig[k+1,10]+sig[k+1,10])*(sig[k+1,11]-sig[k,11]) 
+
+        xp = sig[:,0]
+        yp = zrec[:]
+        zrecb=np.interp(bound[:,0],xp,yp)
+
+        axes[0].plot(sig[:,1],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+
+        axes[1].plot(sig[:,2],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        axes[2].plot(sig[:,3],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[3].plot(sig[:,5]/1e3,zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[4].plot(sig[:,6],zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[5].plot((sig[:,7]-rectime[4])/1e3,zrec,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+    elif pltstyle == 'time':
+
+        axes[0].plot(sig[:,1],(sig[:,7]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[0].plot(bound[:,1],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
+
+        axes[1].plot(sig[:,2],(sig[:,7]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[1].plot(bound[:,2],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
+        axes[2].plot(sig[:,3],(sig[:,7]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[3].plot(sig[:,5]/1e3,(sig[:,7]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[4].plot(sig[:,6],(sig[:,7]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[4].plot(bound[:,3],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
+
+    elif pltstyle == 'diagtime':
+
+        axes[0].plot(sig[:,1],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[0].plot(bound[:,1],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
+
+        axes[1].plot(sig[:,2],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[1].plot(bound[:,2],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
+        axes[2].plot(sig[:,3],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[3].plot(sig[:,5]/1e3,(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+                     
+        axes[4].plot(sig[:,6],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 ,label=label
+                     )
+        if i==0:axes[4].plot(bound[:,3],(bound[:,0]-rectime[4])/1e3,refls,c=refc, dashes=refds,lw = reflw
+                         ,label='Input'
+                     )
 
 def sigplot(code,code_kie,ox,oxanox,labs,turbo2,nobio,simname
             ,filename,i,ax1,ax2,ax3,ax4,ax5,ax6
@@ -239,6 +388,10 @@ def sigplot(code,code_kie,ox,oxanox,labs,turbo2,nobio,simname
                      )
 
 def main():
+    if not os.getcwd() in sys.path: sys.path.append(os.getcwd())
+    import plot_settings
+    plot_settings.plot_settings()
+    
     nexp = 3  # Here you can specify the number of plot, 1 to 3 
 
     ox = np.zeros(nexp,dtype=bool)

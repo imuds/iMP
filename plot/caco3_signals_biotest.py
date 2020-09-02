@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import os
+import os,sys
 import subprocess
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
@@ -10,33 +10,6 @@ mathtext.FontConstantsBase = mathtext.ComputerModernFontConstants
 """
 caco3 signal profiles 
 """
-
-plt.rcParams['font.family'] = 'Arial' 
-plt.rcParams['font.size'] = 16
-
-linewidth = 1.
-
-plt.rcParams['axes.linewidth'] = linewidth
-
-plt.rcParams['xtick.major.width'] = linewidth
-plt.rcParams['xtick.major.size'] = 8
-plt.rcParams['xtick.minor.width'] = linewidth
-plt.rcParams['xtick.minor.size'] = 4
-plt.rcParams['xtick.major.pad'] = 8
-
-plt.rcParams['ytick.major.width'] = linewidth
-plt.rcParams['ytick.major.size'] = 8
-plt.rcParams['ytick.minor.width'] = linewidth
-plt.rcParams['ytick.minor.size'] = 4
-plt.rcParams['ytick.major.pad'] = 8
-
-plt.rcParams['axes.labelpad'] = 8
-
-plt.rcParams['xtick.direction']='in'
-plt.rcParams['ytick.direction']='in'
-
-plt.tick_params(top=True)
-plt.tick_params(right=True)
 
 def sigplot(code,ox,oxanox,labs,turbo2,nobio,simname,filename
             ,i,axes,pltstyle):
@@ -76,9 +49,10 @@ def sigplot(code,ox,oxanox,labs,turbo2,nobio,simname,filename
     bound = np.loadtxt(Workdir+'bound.txt')
     recz = np.loadtxt(Workdir+'recz.txt')
 
-    print 'end input-',i
-
-
+    # print 'end input-',i
+    
+    ref_exists = False
+    if __name__ == '__main__': ref_exists = True
 
     ls = np.array([':','-','-','--'])
     dsp = [(1,3),(5,0),(5,5),[5,3,1,3]]
@@ -199,18 +173,22 @@ def sigplot(code,ox,oxanox,labs,turbo2,nobio,simname,filename
                  ,label=label
                      )
 
-        if i==0:axes[2].plot((bound[:,0]-rectime[4])/1e3,(bound[:,0]-rectime[4])/1e3,refls,c=refc,lw = reflw
-                         ,label='Input'
-                     )
-        axes[2].plot((sig[:,7]-rectime[4])/1e3,(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
-                 ,label=label
-                     )
+        # if i==0:axes[2].plot((bound[:,0]-rectime[4])/1e3,(bound[:,0]-rectime[4])/1e3,refls,c=refc,lw = reflw
+                         # ,label='Input'
+                     # )
+        # axes[2].plot((sig[:,7]-rectime[4])/1e3,(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+                 # ,label=label
+                     # )
         
-        axes[3].plot(sig[:,3],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
+        axes[2].plot(sig[:,3],(sig[:,0]-rectime[4])/1e3,ls[i],c=cls[i], dashes=dsp[i]
                  ,label=label
                      )
 
 def main():
+    if not os.getcwd() in sys.path: sys.path.append(os.getcwd())
+    import plot_settings
+    plot_settings.plot_settings()
+    
     nexp = 4  # Here you can specify the number of plot, 1 to 3 
 
     ox = np.zeros(nexp,dtype=bool)
