@@ -57,8 +57,6 @@ elif turbo2:
     if oxanox:folder += 'oxanox_turbo2/'
     else:folder += 'ox_turbo2/'
     label='Homogeneous mixing'
-    if len(axes)==3:
-        label='Homogeneous\nmixing'
 else: 
     if oxanox:folder += 'oxanox/'
     else: folder += 'ox/'
