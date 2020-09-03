@@ -19,6 +19,9 @@ str_tmp = raw_input('Use default temporal changes of input parameter values [y/n
 if str_tmp == 'y': 
     default_event = True
     simmode = raw_input('What kind of simulation ["biot", "diss", "size" or "iso"] ?: \t')
+    if simmode == 'diss':
+        str_tmp = raw_input('To cause dissolution, what depth you would put system in [km]?: \t')
+        dep_event = eval(str_tmp)
 else: default_event = False
 str_tmp = raw_input('Plot temporal changes of input parameter values [y/n] ?:\t')
 if str_tmp == 'y': plt_timeline = True
@@ -134,6 +137,17 @@ if default_event:
         event_list[par_names.index('d13c')] = [[time_start,40e3,45e3,85e3,90e3,time_end],[2.,2.,-1.,-1.,2.,2.]] 
         event_list[par_names.index('d18o')] = [[time_start,event_start,0.5*(event_start+event_end),event_end,time_end],[1.,1.,-1.,1.,1.]]
         event_list[par_names.index('capd47')] = [[time_start,event_start,0.5*(event_start+event_end),event_end,time_end],[0.6,0.6,0.5,0.6,0.6]]
+        if simmode == 'diss':
+            event_list[par_names.index('dep')] = [
+                [time_start,40e3,45e3,85e3,90e3,time_end]
+                ,[
+                    par_values_base[par_names.index('dep')]
+                    ,par_values_base[par_names.index('dep')]
+                    ,dep_event,dep_event
+                    ,par_values_base[par_names.index('dep')]
+                    ,par_values_base[par_names.index('dep')]
+                ]
+                ] 
         if simmode == 'size':
             event_list[par_names.index('flxfin')] = [[time_start,event_start,0.5*(event_start+event_end),event_end,time_end],[0.5,0.5,0.1,0.5,0.5]]
 else: 
