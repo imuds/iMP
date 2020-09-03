@@ -16,9 +16,9 @@ water depth (km),
 time step for each iteration (yr),
 OM degradation model (oxic only degradation if true; oxic and anoxic degradation if false), 
 bioturbation mode ('fickian','nobio','labs' or 'turbo2' for Fickian-, no-, LABS- and homogeneous-mixing, respectively), and 
-simulation name (which becomes the name of directory where results are stored). 
+simulation name (which becomes the name of directory where the results are stored).  
 
-If one chooses to use input files to define boundary conditions (def_reading = true), 
+If one chooses to use input files to define boundary conditions (i.e. setting def_reading = true in caco3_main.m), 
 values for cc_rain_flx_in, rainratio_in, dep_in, dt_in are not reflected in as they are read from input file
 (see, e.g., Examples 2-4 below) 
 
@@ -99,15 +99,16 @@ You can do this in comand line as follows:
 'cp EXAMPLES/imp_input_EXAMPLE-BIOT.in imp_input.in'
 
 Execute experiment (with default boundary conditions) by 
+
 run_sig_iso_dtchange(12.0e-5, 0.7, 3.5, 1d8, false, 'fickian', 'biot_sim')
 input 'fickian' can be replaced by 'nobio', 'labs' or 'turbo2' to examine effect of different styles of bioturbation
 (note that inputs of CaCO3 rain flux, rain tatio, water depth and time step in the above function
 are meaningless as they are overwritten by inpuf file data when one uses input file to specify temporal changes of boundary conditions)
 
 %%%%% plotting of results is done with the python script caco3_signals_biotest.py  
-In the script, you need clarify you are plotting matlab results (i.e., component of list code = 'matlab')  
+In the script, you need specify that you are plotting matlab results (i.e., uncomment the matlab settings of list code = 'matlab', line 289ff.) 
 and specify simulation name (list simname) as well as subfolder name (list filename)
-and plot style (pltstyle = 'diagdep')
+and plot style (pltstyle = 'diagdep', ln 237ff.)
 (see the comments in the script or readme in /iMP/plot/ directory)
 
 
