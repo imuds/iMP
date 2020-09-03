@@ -1,8 +1,8 @@
 ! using 'test' directory 
-#define test 
+! #define test 
 
 ! reading input data
-! #define reading 
+#define reading 
 
 ! testing 5kyr signal change event 
 ! #define biotest
@@ -14,7 +14,7 @@
 ! #define sense
 
 ! run only to reach steady state
-#define finss
+! #define finss
 
 ! using method2 to track signals (default 42 species)
 ! #define track2 
@@ -56,7 +56,7 @@
 ! #define oxonly
 
 ! recording the grid to be used for making transition matrix in LABS 
-!#define recgrid
+! #define recgrid
 
 ! specify ref om decomp rate const (default 0.06 [yr-1])
 ! #define komi_input 0.06
@@ -74,19 +74,19 @@
 ! #define nodissolve
 
 ! direct isotope tracking 
-#define isotrack
+! #define isotrack
 
 ! kinetic isotope effect
 ! #define kie
 
 ! isotope tracking also for dic
-#define aqiso
+! #define aqiso
 
 ! allow precipitation 
-#define precip
+! #define precip
 
 ! no 14c radio-decay (when calculation domain becomes deep, 14C calculation causes difficulty in convergence due to very low conc.)
-#define noradio
+! #define noradio
 
 ! consider diffusion boundary layer 
 ! #define DBL
@@ -98,7 +98,7 @@
 ! #define methane 2
 
 ! stepwise warm up (first reaching steady state) (better to use when allowing precipitation?)
-#define stepwarm
+! #define stepwarm
 
 ! direct isotope tracking with including 17O 
 ! #define fullclump

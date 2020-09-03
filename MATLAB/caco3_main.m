@@ -74,7 +74,7 @@ classdef caco3_main
         def_isotrack = false;      % directly tracking 5 isotopologues
         def_kie = false;      % directly tracking 5 isotopologues
         
-        def_timetrack = true; % tracking time as a proxy 
+        def_timetrack = false; % tracking time as a proxy 
         
         def_reading = true; % use input file for sinal tracking diagenesis
         
