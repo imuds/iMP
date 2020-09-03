@@ -96,8 +96,8 @@ function run_sig_iso_dtchange(cc_rain_flx_in, rainratio_in, dep_in, dt_in, oxonl
     end
     
     % homedir = erase(pwd,'iMP/MATLAB');
-    homedir = extractBefore(pwd,'MATLAB');
-    homedir = erase(homedir,strcat('iMP',homedir(strlength(homedir))));
+    homedir = pwd;
+    homedir = erase(homedir,homedir(strlength(homedir)-9:strlength(homedir)));
     homedir = strcat(homedir,'imp_output/matlab/');
     homedir = strcat(homedir,folder);
     profdir = strcat(homedir,'/profiles/');
