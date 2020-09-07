@@ -148,6 +148,17 @@ if default_event:
                     ,par_values_base[par_names.index('dep')]
                 ]
                 ] 
+        if simmode == 'iso':
+            event_list[par_names.index('dep')] = [
+                [time_start,40e3,45e3,85e3,90e3,time_end]
+                ,[
+                    par_values_base[par_names.index('dep')]
+                    ,par_values_base[par_names.index('dep')]
+                    ,5.0,5.0
+                    ,par_values_base[par_names.index('dep')]
+                    ,par_values_base[par_names.index('dep')]
+                ]
+                ] 
         if simmode == 'size':
             event_list[par_names.index('flxfin')] = [[time_start,event_start,0.5*(event_start+event_end),event_end,time_end],[0.5,0.5,0.1,0.5,0.5]]
 else: 
